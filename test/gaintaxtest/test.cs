@@ -3,29 +3,56 @@ using gaintaxlibrary;
 namespace gaintaxtest{
     public class UnitTest1
     {
-        [Fact]
-        public void Test1()
+        private static bool isClose(double a, double b)
         {
+            if (a < 0.0000001 && a > -0.0000001 && b < 0.0000001 && b > -0.0000001) // zero case
+            {
+                return true;
+            }
 
-        }
-
-        [Fact]
-        public void Test2()
-        {
-            Assert.Equal(4,gaintaxlibrary.ClassGainTax.Go());
-        
-        }
- 
-        static bool isClose(double a, double b)
-        {
             if (a < b * 1.0000001 && a > b * 0.999999)
             {
                 return true;
             }
+            if (a > b * 1.0000001 && a < b * 0.999999) // for negative numbers comparision
+            {
+                return true;
+            }
+
             return false;
         }
 
-        /*[Fact]
+        private void addUsdSellTransaction(List<transaction> t, string symbol, DateTime d, double tokenSellAmount, double dollars, string exchange="exchange")
+        {
+            t.Add(new transaction
+                {
+                    buyAmount = dollars,
+                    buySymbol = "usd",
+                    sellAmount = tokenSellAmount,
+                    sellSymbol = symbol,
+                    transDate = d,
+                    exchangeRec = exchange,
+                    exchangeSent = exchange,
+                    combinedCount = 0
+                });
+        }
+
+        private void addUsdBuyTransaction(List<transaction> t, string symbol, DateTime d, double tokenBuyAmount, double dollars, string exchange="exchange")
+        {
+            t.Add(new transaction
+                {
+                    buyAmount = tokenBuyAmount,
+                    buySymbol = symbol,
+                    sellAmount = dollars,
+                    sellSymbol = "usd",
+                    transDate = d,
+                    exchangeRec = exchange,
+                    exchangeSent = exchange,
+                    combinedCount = 1
+                });
+        }
+
+        [Fact]
         public void AddTransactions()
         {
             ClassGainTax t = new ClassGainTax();
@@ -37,17 +64,7 @@ namespace gaintaxtest{
             {
                 for (int i = 0; i < 3; i++)
                 {
-                    t.transactionsOriginal.Add(new transaction
-                    {
-                        buyAmount = 1,
-                        buySymbol = "btc",
-                        sellAmount = (1000 + i * 5) * 1,
-                        sellSymbol = "usd",
-                        transDate = new DateTime(2018, 1, i + 1),
-                        exchangeRec = "binance",
-                        exchangeSent = "binance",
-                        combinedCount = 0
-                    });
+                    addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2018,1,i+1), 1,  (1000 + i * 5) * 1);
                 }
 
                 t.transactionsOriginal.Add(new transaction
@@ -66,17 +83,114 @@ namespace gaintaxtest{
 
             t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 2);
             List<bucket> bucketsbtc = new List<bucket>();
-            var realizedbtc = t.computeGains(out bucketsbtc, false, "btc", "fiho", t.transactionsOriginal);
-            t.computeBuysSellsSymbol(t.transactionsOriginal, "btc");
+            var realizedbtc = t.computeGains(out bucketsbtc, true, "btc", "fiho", t.transactionsOriginal);
+            //t.computeBuysSellsSymbol(t.transactionsOriginal, "btc");
 
-            t.summerizeRealized("2018", realizedbtc);
-            var h = realizedbtc.First(x => x.trans.transDate.Value.Year == 2018).gain;
-            Assert.True(isClose(h, 75.0));
+            Assert.Single(realizedbtc);
+            var h = realizedbtc.First();
+            Assert.True(isClose(h.gain, 75.0));
+        }
 
-        }*/
+        [Fact]
+        public void Testfiho()
+        {
+            ClassGainTax t = new ClassGainTax();
+            t.transactionsOriginal = new List<transaction>();
+            historicPrice hp = new historicPrice();
+            for (int i = 0; i < 3; i++)
+            {
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2018, 1, i + 1), 1, (2000 + i * 100));
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2019, 1 , i + 1), 1, (100 + i * 100));
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2020, 1 , i + 1), 1, (1000 + i * 100));
+                addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2021, 1, i + 1), 1, 2000);
+            }
+            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.transDate.Value).ToList();
 
-/*        [Fact]
-        public void AddManyTransactions()
+            t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 100); // 100 hours 
+            List<bucket> bucketsbtc = new List<bucket>();
+            var realizedbtc = t.computeGains(out bucketsbtc, true, "btc", "fiho", t.transactionsOriginal);
+
+            Assert.Single(realizedbtc);
+            var h = realizedbtc.First();
+            Assert.True(isClose(h.gain, -300.0));
+        }
+
+        [Fact]
+        public void TestfihoDoNotCombine()
+        {
+            ClassGainTax t = new ClassGainTax();
+            t.transactionsOriginal = new List<transaction>();
+            historicPrice hp = new historicPrice();
+            for (int i = 0; i < 3; i++)
+            {
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2018, 1, i + 1), 1, (2000 + i * 100));
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2019, 1 , i + 1), 1, (100 + i * 100));
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2020, 1 , i + 1), 1, (1000 + i * 100));
+                addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2021, 1, i + 1), 1, 2000);
+            }
+            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.transDate.Value).ToList();
+
+            List<bucket> bucketsbtc = new List<bucket>();
+            var realizedbtc = t.computeGains(out bucketsbtc, true, "btc", "fiho", t.transactionsOriginal);
+
+            Assert.Equal(3, realizedbtc.Count());
+            
+            Assert.True(isClose(realizedbtc.First(x => isClose(x.gain, -200.0)).gain, -200.0));
+            Assert.True(isClose(realizedbtc.First(x => isClose(x.gain, -100.0)).gain, -100.0));
+            Assert.True(isClose(realizedbtc.First(x => isClose(x.gain, 0.0)).gain, 0.0));
+        }
+
+        [Fact]
+        public void Testfilo()
+        {
+            ClassGainTax t = new ClassGainTax();
+            t.transactionsOriginal = new List<transaction>();
+            historicPrice hp = new historicPrice();
+            for (int i = 0; i < 3; i++)
+            {
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2018, 1, i + 1), 1, (2000 + i * 100));
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2019, 1 , i + 1), 1, (100 + i * 100));
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2020, 1 , i + 1), 1, (1000 + i * 100));
+                addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2021, 1, i + 1), 1, 2000);
+            }
+            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.transDate.Value).ToList();
+
+            t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 100); // 100 hours 
+            List<bucket> bucketsbtc = new List<bucket>();
+            var realizedbtc = t.computeGains(out bucketsbtc, true, "btc", "filo", t.transactionsOriginal);
+
+            Assert.Single(realizedbtc);
+            var h = realizedbtc.First();
+            Assert.True(isClose(h.gain, 2700.0));
+        }
+
+        [Fact]
+        public void Testfiso()
+        {
+            ClassGainTax t = new ClassGainTax();
+            t.transactionsOriginal = new List<transaction>();
+            historicPrice hp = new historicPrice();
+            for (int i = 0; i < 3; i++)
+            {
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2018, 1, i + 1), 1, (2000 + i * 100));
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2019, 1 , i + 1), 1, (100 + i * 100));
+                addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2020, 1 , i + 1), 1, (1000 + i * 100));
+                addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2021, 1, i + 1), 1, 2000);
+            }
+            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.transDate.Value).ToList();
+
+            t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 100); // 100 hours 
+            List<bucket> bucketsbtc = new List<bucket>();
+            var realizedbtc = t.computeGains(out bucketsbtc, true, "btc", "fiso", t.transactionsOriginal);
+
+            Assert.Single(realizedbtc);
+            var h = realizedbtc.First();
+            Assert.True(isClose(h.gain, 5400.0));
+        }
+
+
+        [Fact]
+        public void AddManyTransactionsTwoSellsOnSameDay()
         {
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
@@ -102,9 +216,20 @@ namespace gaintaxtest{
 
                 t.transactionsOriginal.Add(new transaction
                 {
-                    buyAmount = 1030 * 30,
+                    buyAmount = 1030 * 29,
                     buySymbol = "usd",
-                    sellAmount = 30,
+                    sellAmount = 29,
+                    sellSymbol = "btc",
+                    transDate = new DateTime(2018, 11, 10),
+                    exchangeRec = "coinbase",
+                    exchangeSent = "coinbase",
+                    combinedCount = 0
+                });
+                t.transactionsOriginal.Add(new transaction
+                {
+                    buyAmount = 1030 * 1,
+                    buySymbol = "usd",
+                    sellAmount = 1,
                     sellSymbol = "btc",
                     transDate = new DateTime(2018, 11, 10),
                     exchangeRec = "coinbase",
@@ -116,15 +241,17 @@ namespace gaintaxtest{
 
             t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 2);
             List<bucket> bucketsbtc = new List<bucket>();
-            var realizedbtc = t.computeGains(out bucketsbtc, false, "btc", "fiho", t.transactionsOriginal);
-            t.computeBuysSellsSymbol(t.transactionsOriginal, "btc");
+            var realizedbtc = t.computeGains(out bucketsbtc, true, "btc", "fiho", t.transactionsOriginal);
+            //t.computeBuysSellsSymbol(t.transactionsOriginal, "btc");
 
-            t.summerizeRealized("2018", realizedbtc);
+            /*t.summerizeRealized("2018", realizedbtc);
             var h = realizedbtc.First(x => x.trans.transDate.Value.Year == 2018).gain;
             Assert.True(isClose(h, 465.0));
-
-        }
 */
+            Assert.Single(realizedbtc);
+            var h = realizedbtc.First();
+            Assert.True(isClose(h.gain, 465.0));
+        }
 
         [Fact]
         public void ManyTransactionsTestCombine1()
@@ -149,7 +276,6 @@ namespace gaintaxtest{
                         exchangeSent = "binance",
                         combinedCount = 0
                     });
-
 
                     t.transactionsOriginal.Add(new transaction
                     {
@@ -361,9 +487,9 @@ namespace gaintaxtest{
             t.convertBitcoinPairToTwoDollarTrans(t.transactionsOriginal, 0.0);
             t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 2);
             var realizedbtc = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
-            t.computeBuysSellsSymbol(t.transactionsOriginal, "btc");
+            //t.computeBuysSellsSymbol(t.transactionsOriginal, "btc");
             var realizedeth = t.computeGains(out buckets, false, "eth", "fiho", t.transactionsOriginal);
-            t.computeBuysSellsSymbol(t.transactionsOriginal, "eth");
+            //t.computeBuysSellsSymbol(t.transactionsOriginal, "eth");
 
             t.summerizeRealized("2018", realizedbtc);
             Assert.True(isClose(realizedbtc.First(x => x.trans.transDate.Value.Year == 2018).gain, 100.0));
@@ -401,7 +527,6 @@ namespace gaintaxtest{
             Assert.Equal(" -1000.00", t.padStringFormat(s));
 
         }
-
 
         [Fact]
         public void ManyTransactionsTestCombine3()
@@ -495,7 +620,6 @@ namespace gaintaxtest{
             var t22 = t.realizedTransToString(realizedbtc2);
             Assert.True(isClose(h, h2));
         }
-
 
         [Fact]
         public void DifferentSymbols()
@@ -596,9 +720,9 @@ namespace gaintaxtest{
             t.convertBitcoinPairToTwoDollarTrans(t.transactionsOriginal);
             t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 2);
             var realizedbtc = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
-            t.computeBuysSellsSymbol(t.transactionsOriginal, "btc");
+            //t.computeBuysSellsSymbol(t.transactionsOriginal, "btc");
             var realizedeth = t.computeGains(out buckets, false, "eth", "fiho", t.transactionsOriginal);
-            t.computeBuysSellsSymbol(t.transactionsOriginal, "eth");
+            //t.computeBuysSellsSymbol(t.transactionsOriginal, "eth");
 
 
             t.summerizeRealized("2017", realizedbtc);
@@ -610,77 +734,23 @@ namespace gaintaxtest{
         }
 
         [Fact]
-        public void SomeBTCTransactionsTestRealizedGain()
+        public void SomeBTCTransactionsTestRealizedGainFIHO()
         {
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
 
             historicPrice hp = new historicPrice();
-
-            t.transactionsOriginal.Add(new transaction
-            {
-                buyAmount = 0.1,
-                buySymbol = "btc",
-                sellAmount = (2000) * 0.1,
-                sellSymbol = "usd",
-                transDate = new DateTime(2017, 1, 1),
-                exchangeRec = "binance",
-                exchangeSent = "binance",
-                combinedCount = 0
-            });
-            t.transactionsOriginal.Add(new transaction
-             {
-                 buyAmount = 0.1,
-                 buySymbol = "btc",
-                 sellAmount = (3000) * 0.1,
-                 sellSymbol = "usd",
-                 transDate = new DateTime(2017, 2, 2),
-                 exchangeRec = "binance",
-                 exchangeSent = "binance",
-                 combinedCount = 0
-             });
-
-            t.transactionsOriginal.Add(new transaction
-            {
-                buyAmount = (3100) * 0.15, //465
-                buySymbol = "usd",
-                sellAmount = 0.15,
-                sellSymbol = "btc",
-                transDate = new DateTime(2017, 3, 3),
-                exchangeRec = "coinbase",
-                exchangeSent = "coinbase",
-                combinedCount = 0
-            });
-
-            t.transactionsOriginal.Add(new transaction
-            {
-                buyAmount = 0.1,
-                buySymbol = "btc",
-                sellAmount = (500) * 0.1,
-                sellSymbol = "usd",
-                transDate = new DateTime(2017, 4, 4),
-                exchangeRec = "binance",
-                exchangeSent = "binance",
-                combinedCount = 0
-            });
-
-            t.transactionsOriginal.Add(new transaction
-            {
-                buyAmount = (2100) * 0.12,
-                buySymbol = "usd",
-                sellAmount = 0.12,
-                sellSymbol = "btc",
-                transDate = new DateTime(2017, 5, 5),
-                exchangeRec = "coinbase",
-                exchangeSent = "coinbase",
-                combinedCount = 0
-            });
-
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2017,1,1), 0.1, 200);
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2017,2,2), 0.1, 300);
+            addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2017,3,3), 0.15, 3100*0.15);
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2017,4,4), 0.1, 50);
+            addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2017,5,5), 0.12, 2100*0.12);
+            
             List<bucket> buckets = new List<bucket>();
 
-            //var realizedbtc = t.computeGains(out buckets, true, "btc", "fiho", t.transactionsOriginal);
-            //t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 24 * 31);
-            //var realizedbtc2 = t.computeGains(out buckets, true, "btc", "fiho", t.transactionsOriginal);
+            var realizedbtc = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
+            t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 24 * 31, true, 4.0);
+            var realizedbtc2 = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
 
             var realizedTrans38 = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
             var t22 = t.realizedTransToString(realizedTrans38);
