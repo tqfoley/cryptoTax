@@ -1633,11 +1633,9 @@ namespace gaintaxlibrary
             }
         }
 
-        public static int Go()
+        public static void Go()
         {
-    
-            Console.WriteLine("library2");
-            return 4; 
+            Console.WriteLine("Tax Calculator Library");
         }
 
     }

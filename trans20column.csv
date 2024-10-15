@@ -1,0 +1,4 @@
+Date,Type,Transaction ID,Received Quantity,Received Currency,Received Cost Basis (USD),Received Wallet,Received Address,Received Comment,Sent Quantity,Sent Currency,Sent Cost Basis (USD),Sent Wallet,Sent Address,Sent Comment,Fee Amount,Fee Currency,Fee (USD),Return (USD),Fee Realized Return (USD), Hash
+06/16/2021 23:28:27,BUY,f1229269-7559-4f44-b493-70b26d5559b1,0.003,BTC,...,Binance BTC Wallet,,,128.42,USD,...,Binance USD Wallet,,,0.25026,USD,...,...,...,
+06/09/2021 17:19:47,SELL,f1229269-7559-4f44-b493-70b26d5559b1,369.44,USD,...,Binance USD Wallet,,,0.01,BTC,...,Binance BTC Wallet,,,0.59763,USD,...,...,...,
+06/05/2021 14:06:47,BUY,f1229269-7559-4f44-b493-70b26d5559b1,0.01,BTC,...,Coinbase Pro BTC Wallet,,,355.90,USD,...,Coinbase Pro USD Wallet,,,0.35555,USD,...,...,...,
