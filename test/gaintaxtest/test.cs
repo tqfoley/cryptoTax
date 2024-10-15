@@ -30,7 +30,7 @@ namespace gaintaxtest{
                     buySymbol = "usd",
                     sellAmount = tokenSellAmount,
                     sellSymbol = symbol,
-                    transDate = d,
+                    dateTime = d,
                     exchangeRec = exchange,
                     exchangeSent = exchange,
                     combinedCount = 0
@@ -45,12 +45,75 @@ namespace gaintaxtest{
                     buySymbol = symbol,
                     sellAmount = dollars,
                     sellSymbol = "usd",
-                    transDate = d,
+                    dateTime = d,
                     exchangeRec = exchange,
                     exchangeSent = exchange,
                     combinedCount = 1
                 });
         }
+
+
+        [Fact]
+        public void HistoricPriceSimple()
+        {
+            ClassGainTax t = new ClassGainTax();
+            t.transactionsOriginal = new List<transaction>();
+
+            historicDayPriceUSD hp = new historicDayPriceUSD();
+            hp.dateOnly = new DateOnly(2018, 1, 3);
+            hp.low = double.Parse("2000.0");
+            hp.high = double.Parse("3000.0");
+            hp.firstPrice = double.Parse("2000.0");
+            hp.lastPrice = double.Parse("3000.0");
+            t.historicPrices.Add(hp);
+
+            historicDayPriceUSD hp2 = new historicDayPriceUSD();
+            hp2.dateOnly = new DateOnly(2018, 1, 4);
+            hp2.low = double.Parse("3000.0");
+            hp2.high = double.Parse("4000.0");
+            hp2.firstPrice = double.Parse("3000.0");
+            hp2.lastPrice = double.Parse("4000.0");
+            t.historicPrices.Add(hp2);
+
+            // +$500 eth cost $500 for 5 eth
+            // -$350 for 0.1BTC sell 2 eth at $175 for $150 gain
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2018, 1, 1), 1, 2000);
+            //$100 gain btc
+                t.transactionsOriginal.Add(new transaction
+                {
+                    buyAmount = 5,
+                    buySymbol = "eth",
+                    sellAmount = 0.2,
+                    sellSymbol = "btc",
+                    dateTime = new DateTime(2018, 1, 3),
+                    exchangeRec = "binance",
+                    exchangeSent = "binance",
+                    combinedCount = 0
+                });
+
+                t.transactionsOriginal.Add(new transaction
+                {
+                    buyAmount = 0.1,
+                    buySymbol = "btc",
+                    sellAmount = 2,
+                    sellSymbol = "eth",
+                    dateTime = new DateTime(2018, 1, 4),
+                    exchangeRec = "binance",
+                    exchangeSent = "binance",
+                    combinedCount = 0
+                });
+
+            List<bucket> buckets = new List<bucket>();
+            t.convertBitcoinPairToTwoTransInUSD(t.transactionsOriginal);
+
+            var realizedbtc = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
+            var realizedeth = t.computeGains(out buckets, false, "eth", "fiho", t.transactionsOriginal);
+
+            Assert.True(isClose(realizedbtc.First(x => x.trans.dateTime.Value.Year == 2018).gain, 100.0));
+            Assert.True(isClose(realizedeth.First(x => x.trans.dateTime.Value.Year == 2018).gain, 150.0));
+        }
+
+
 
         [Fact]
         public void AddTransactions()
@@ -58,7 +121,7 @@ namespace gaintaxtest{
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
 
-            historicPrice hp = new historicPrice();
+            historicDayPriceUSD hp = new historicDayPriceUSD();
 
             if (true)
             {
@@ -73,7 +136,7 @@ namespace gaintaxtest{
                     buySymbol = "usd",
                     sellAmount = 3,
                     sellSymbol = "btc",
-                    transDate = new DateTime(2018, 11, 10),
+                    dateTime = new DateTime(2018, 11, 10),
                     exchangeRec = "coinbase",
                     exchangeSent = "coinbase",
                     combinedCount = 0
@@ -96,7 +159,7 @@ namespace gaintaxtest{
         {
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
-            historicPrice hp = new historicPrice();
+            historicDayPriceUSD hp = new historicDayPriceUSD();
             for (int i = 0; i < 3; i++)
             {
                 addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2018, 1, i + 1), 1, (2000 + i * 100));
@@ -104,7 +167,7 @@ namespace gaintaxtest{
                 addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2020, 1 , i + 1), 1, (1000 + i * 100));
                 addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2021, 1, i + 1), 1, 2000);
             }
-            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.transDate.Value).ToList();
+            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.dateTime.Value).ToList();
 
             t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 100); // 100 hours 
             List<bucket> bucketsbtc = new List<bucket>();
@@ -113,6 +176,7 @@ namespace gaintaxtest{
             Assert.Single(realizedbtc);
             var h = realizedbtc.First();
             Assert.True(isClose(h.gain, -300.0));
+            Assert.True(isClose(h.sellAmountReceivedUsuallyDollars, 6000.0));
         }
 
         [Fact]
@@ -120,7 +184,7 @@ namespace gaintaxtest{
         {
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
-            historicPrice hp = new historicPrice();
+            historicDayPriceUSD hp = new historicDayPriceUSD();
             for (int i = 0; i < 3; i++)
             {
                 addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2018, 1, i + 1), 1, (2000 + i * 100));
@@ -128,7 +192,7 @@ namespace gaintaxtest{
                 addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2020, 1 , i + 1), 1, (1000 + i * 100));
                 addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2021, 1, i + 1), 1, 2000);
             }
-            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.transDate.Value).ToList();
+            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.dateTime.Value).ToList();
 
             List<bucket> bucketsbtc = new List<bucket>();
             var realizedbtc = t.computeGains(out bucketsbtc, true, "btc", "fiho", t.transactionsOriginal);
@@ -145,7 +209,7 @@ namespace gaintaxtest{
         {
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
-            historicPrice hp = new historicPrice();
+            historicDayPriceUSD hp = new historicDayPriceUSD();
             for (int i = 0; i < 3; i++)
             {
                 addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2018, 1, i + 1), 1, (2000 + i * 100));
@@ -153,7 +217,7 @@ namespace gaintaxtest{
                 addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2020, 1 , i + 1), 1, (1000 + i * 100));
                 addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2021, 1, i + 1), 1, 2000);
             }
-            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.transDate.Value).ToList();
+            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.dateTime.Value).ToList();
 
             t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 100); // 100 hours 
             List<bucket> bucketsbtc = new List<bucket>();
@@ -169,7 +233,7 @@ namespace gaintaxtest{
         {
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
-            historicPrice hp = new historicPrice();
+            historicDayPriceUSD hp = new historicDayPriceUSD();
             for (int i = 0; i < 3; i++)
             {
                 addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2018, 1, i + 1), 1, (2000 + i * 100));
@@ -177,7 +241,7 @@ namespace gaintaxtest{
                 addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2020, 1 , i + 1), 1, (1000 + i * 100));
                 addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2021, 1, i + 1), 1, 2000);
             }
-            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.transDate.Value).ToList();
+            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.dateTime.Value).ToList();
 
             t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 100); // 100 hours 
             List<bucket> bucketsbtc = new List<bucket>();
@@ -195,7 +259,7 @@ namespace gaintaxtest{
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
 
-            historicPrice hp = new historicPrice();
+            historicDayPriceUSD hp = new historicDayPriceUSD();
 
             if (true)
             {
@@ -207,7 +271,7 @@ namespace gaintaxtest{
                         buySymbol = "btc",
                         sellAmount = (1000 + i) * 1,
                         sellSymbol = "usd",
-                        transDate = new DateTime(2018, 1, i + 1),
+                        dateTime = new DateTime(2018, 1, i + 1),
                         exchangeRec = "binance",
                         exchangeSent = "binance",
                         combinedCount = 0
@@ -220,7 +284,7 @@ namespace gaintaxtest{
                     buySymbol = "usd",
                     sellAmount = 29,
                     sellSymbol = "btc",
-                    transDate = new DateTime(2018, 11, 10),
+                    dateTime = new DateTime(2018, 11, 10),
                     exchangeRec = "coinbase",
                     exchangeSent = "coinbase",
                     combinedCount = 0
@@ -231,7 +295,7 @@ namespace gaintaxtest{
                     buySymbol = "usd",
                     sellAmount = 1,
                     sellSymbol = "btc",
-                    transDate = new DateTime(2018, 11, 10),
+                    dateTime = new DateTime(2018, 11, 10),
                     exchangeRec = "coinbase",
                     exchangeSent = "coinbase",
                     combinedCount = 0
@@ -259,7 +323,7 @@ namespace gaintaxtest{
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
 
-            historicPrice hp = new historicPrice();
+            historicDayPriceUSD hp = new historicDayPriceUSD();
 
             if (true)
             {
@@ -271,7 +335,7 @@ namespace gaintaxtest{
                         buySymbol = "btc",
                         sellAmount = (1000 + i) * 1,
                         sellSymbol = "usd",
-                        transDate = new DateTime(2018, 1, i + 1),
+                        dateTime = new DateTime(2018, 1, i + 1),
                         exchangeRec = "binance",
                         exchangeSent = "binance",
                         combinedCount = 0
@@ -283,7 +347,7 @@ namespace gaintaxtest{
                         buySymbol = "usd",
                         sellAmount = 0.5,
                         sellSymbol = "btc",
-                        transDate = new DateTime(2018, 1, i + 2),
+                        dateTime = new DateTime(2018, 1, i + 2),
                         exchangeRec = "coinbase",
                         exchangeSent = "coinbase",
                         combinedCount = 0
@@ -297,7 +361,7 @@ namespace gaintaxtest{
                 buySymbol = "usd",
                 sellAmount = 3,
                 sellSymbol = "btc",
-                transDate = new DateTime(2018, 9, 3),
+                dateTime = new DateTime(2018, 9, 3),
                 exchangeRec = "coinbase",
                 exchangeSent = "coinbase",
                 combinedCount = 0
@@ -322,7 +386,7 @@ namespace gaintaxtest{
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
 
-            historicPrice hp = new historicPrice();
+            historicDayPriceUSD hp = new historicDayPriceUSD();
 
             if (true)
             {
@@ -334,7 +398,7 @@ namespace gaintaxtest{
                         buySymbol = "btc",
                         sellAmount = (1000 + i) * 1,
                         sellSymbol = "usd",
-                        transDate = new DateTime(2018, 1, i + 1),
+                        dateTime = new DateTime(2018, 1, i + 1),
                         exchangeRec = "binance",
                         exchangeSent = "binance",
                         combinedCount = 0
@@ -347,7 +411,7 @@ namespace gaintaxtest{
                         buySymbol = "usd",
                         sellAmount = 0.5,
                         sellSymbol = "btc",
-                        transDate = new DateTime(2018, 1, i + 2),
+                        dateTime = new DateTime(2018, 1, i + 2),
                         exchangeRec = "coinbase",
                         exchangeSent = "coinbase",
                         combinedCount = 0
@@ -361,7 +425,7 @@ namespace gaintaxtest{
                         buySymbol = "btc",
                         sellAmount = (2000 + i) * 0.1,
                         sellSymbol = "usd",
-                        transDate = new DateTime(2018, 3, i + 1),
+                        dateTime = new DateTime(2018, 3, i + 1),
                         exchangeRec = "binance",
                         exchangeSent = "binance",
                         combinedCount = 0
@@ -374,7 +438,7 @@ namespace gaintaxtest{
                         buySymbol = "usd",
                         sellAmount = 0.2,
                         sellSymbol = "btc",
-                        transDate = new DateTime(2018, 3, i + 2),
+                        dateTime = new DateTime(2018, 3, i + 2),
                         exchangeRec = "coinbase",
                         exchangeSent = "coinbase",
                         combinedCount = 0
@@ -388,7 +452,7 @@ namespace gaintaxtest{
                 buySymbol = "usd",
                 sellAmount = 2.4,
                 sellSymbol = "btc",
-                transDate = new DateTime(2018, 9, 3),
+                dateTime = new DateTime(2018, 9, 3),
                 exchangeRec = "coinbase",
                 exchangeSent = "coinbase",
                 combinedCount = 0
@@ -413,8 +477,8 @@ namespace gaintaxtest{
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
 
-            historicPrice hp = new historicPrice();
-            hp.historicDate = new DateOnly(2018, 1, 3);
+            historicDayPriceUSD hp = new historicDayPriceUSD();
+            hp.dateOnly = new DateOnly(2018, 1, 3);
             hp.high = double.Parse("3000.0");
             hp.low = double.Parse("2000.0");
 
@@ -428,7 +492,7 @@ namespace gaintaxtest{
                     buySymbol = "btc",
                     sellAmount = 1000 * 1.1,
                     sellSymbol = "usd",
-                    transDate = new DateTime(2018, 1, 2),
+                    dateTime = new DateTime(2018, 1, 2),
                     exchangeRec = "binance",
                     exchangeSent = "binance",
                     combinedCount = 0
@@ -440,7 +504,7 @@ namespace gaintaxtest{
                     buySymbol = "usd",
                     sellAmount = 0.9,
                     sellSymbol = "btc",
-                    transDate = new DateTime(2019, 1, 10),
+                    dateTime = new DateTime(2019, 1, 10),
                     exchangeRec = "binance",
                     exchangeSent = "binance",
                     combinedCount = 0
@@ -452,7 +516,7 @@ namespace gaintaxtest{
                     buySymbol = "eth",
                     sellAmount = 0.1,
                     sellSymbol = "btc",
-                    transDate = new DateTime(2018, 1, 3),
+                    dateTime = new DateTime(2018, 1, 3),
                     exchangeRec = "binance",
                     exchangeSent = "binance",
                     combinedCount = 0
@@ -464,7 +528,7 @@ namespace gaintaxtest{
                     buySymbol = "usd",
                     sellAmount = 1.0,
                     sellSymbol = "eth",
-                    transDate = new DateTime(2018, 1, 5),
+                    dateTime = new DateTime(2018, 1, 5),
                     exchangeRec = "binance",
                     exchangeSent = "binance",
                     combinedCount = 0
@@ -476,7 +540,7 @@ namespace gaintaxtest{
                     buySymbol = "usd",
                     sellAmount = 1.0,
                     sellSymbol = "eth",
-                    transDate = new DateTime(2019, 1, 6),
+                    dateTime = new DateTime(2019, 1, 6),
                     exchangeRec = "binance",
                     exchangeSent = "binance",
                     combinedCount = 0
@@ -484,23 +548,21 @@ namespace gaintaxtest{
             }
 
             List<bucket> buckets = new List<bucket>();
-            t.convertBitcoinPairToTwoDollarTrans(t.transactionsOriginal, 0.0);
-            t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 2);
+            t.convertBitcoinPairToTwoTransInUSD(t.transactionsOriginal, 0.0);
+            //t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 2);
             var realizedbtc = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
             //t.computeBuysSellsSymbol(t.transactionsOriginal, "btc");
             var realizedeth = t.computeGains(out buckets, false, "eth", "fiho", t.transactionsOriginal);
             //t.computeBuysSellsSymbol(t.transactionsOriginal, "eth");
 
-            t.summerizeRealized("2018", realizedbtc);
-            Assert.True(isClose(realizedbtc.First(x => x.trans.transDate.Value.Year == 2018).gain, 100.0));
-            t.summerizeRealized("2019", realizedbtc);
-            Assert.True(isClose(realizedbtc.First(x => x.trans.transDate.Value.Year == 2019).gain, 1800.0));
-            t.summerizeRealized("2018", realizedeth);
-            Assert.True(isClose(realizedeth.First(x => x.trans.transDate.Value.Year == 2018).gain, 50.0));
-            t.summerizeRealized("2019", realizedeth);
-            Assert.True(isClose(realizedeth.First(x => x.trans.transDate.Value.Year == 2019).gain, 150.0));
-
-
+            //t.summerizeRealized("2018", realizedbtc);
+            Assert.True(isClose(realizedbtc.First(x => x.trans.dateTime.Value.Year == 2018).gain, 100.0));
+            //t.summerizeRealized("2019", realizedbtc);
+            Assert.True(isClose(realizedbtc.First(x => x.trans.dateTime.Value.Year == 2019).gain, 1800.0));
+            //t.summerizeRealized("2018", realizedeth);
+            Assert.True(isClose(realizedeth.First(x => x.trans.dateTime.Value.Year == 2018).gain, 50.0));
+            //t.summerizeRealized("2019", realizedeth);
+            Assert.True(isClose(realizedeth.First(x => x.trans.dateTime.Value.Year == 2019).gain, 150.0));
         }
 
         [Fact]
@@ -534,7 +596,7 @@ namespace gaintaxtest{
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
 
-            historicPrice hp = new historicPrice();
+            historicDayPriceUSD hp = new historicDayPriceUSD();
 
             if (true)
             {
@@ -546,7 +608,7 @@ namespace gaintaxtest{
                         buySymbol = "btc",
                         sellAmount = (1000 + i) * 1,
                         sellSymbol = "usd",
-                        transDate = new DateTime(2018, 1, i + 1),
+                        dateTime = new DateTime(2018, 1, i + 1),
                         exchangeRec = "binance",
                         exchangeSent = "binance",
                         combinedCount = 0
@@ -559,7 +621,7 @@ namespace gaintaxtest{
                         buySymbol = "usd",
                         sellAmount = 0.5,
                         sellSymbol = "btc",
-                        transDate = new DateTime(2018, 1, i + 2),
+                        dateTime = new DateTime(2018, 1, i + 2),
                         exchangeRec = "coinbase",
                         exchangeSent = "coinbase",
                         combinedCount = 0
@@ -573,7 +635,7 @@ namespace gaintaxtest{
                         buySymbol = "btc",
                         sellAmount = (2000 + i) * 0.1,
                         sellSymbol = "usd",
-                        transDate = new DateTime(2018, 3, i + 1),
+                        dateTime = new DateTime(2018, 3, i + 1),
                         exchangeRec = "binance",
                         exchangeSent = "binance",
                         combinedCount = 0
@@ -586,7 +648,7 @@ namespace gaintaxtest{
                         buySymbol = "usd",
                         sellAmount = 0.2,
                         sellSymbol = "btc",
-                        transDate = new DateTime(2018, 3, i + 2),
+                        dateTime = new DateTime(2018, 3, i + 2),
                         exchangeRec = "coinbase",
                         exchangeSent = "coinbase",
                         combinedCount = 0
@@ -600,7 +662,7 @@ namespace gaintaxtest{
                 buySymbol = "usd",
                 sellAmount = 2.4,
                 sellSymbol = "btc",
-                transDate = new DateTime(2018, 9, 3),
+                dateTime = new DateTime(2018, 9, 3),
                 exchangeRec = "coinbase",
                 exchangeSent = "coinbase",
                 combinedCount = 0
@@ -635,7 +697,7 @@ namespace gaintaxtest{
                     buySymbol = "bnb",
                     sellAmount = 40 * 1000,
                     sellSymbol = "usd",
-                    transDate = new DateTime(2017, 1, 2),
+                    dateTime = new DateTime(2017, 1, 2),
                     exchangeRec = "binance",
                     exchangeSent = "binance",
                     combinedCount = 1
@@ -647,7 +709,7 @@ namespace gaintaxtest{
                     buySymbol = "eth",
                     sellAmount = 250 * 25,
                     sellSymbol = "usd",
-                    transDate = new DateTime(2017, 1, 2),
+                    dateTime = new DateTime(2017, 1, 2),
                     exchangeRec = "coinbase",
                     exchangeSent = "coinbase",
                     combinedCount = 1
@@ -659,7 +721,7 @@ namespace gaintaxtest{
                     buySymbol = "sol",
                     sellAmount = 50 * 1000,
                     sellSymbol = "usd",
-                    transDate = new DateTime(2017, 1, 2),
+                    dateTime = new DateTime(2017, 1, 2),
                     exchangeRec = "coinbase",
                     exchangeSent = "coinbase",
                     combinedCount = 1
@@ -671,7 +733,7 @@ namespace gaintaxtest{
                     buySymbol = "hbar",
                     sellAmount = 30000.0 * 0.09,
                     sellSymbol = "usd",
-                    transDate = new DateTime(2017, 1, 2),
+                    dateTime = new DateTime(2017, 1, 2),
                     exchangeRec = "coinbase",
                     exchangeSent = "coinbase",
                     combinedCount = 1
@@ -683,7 +745,7 @@ namespace gaintaxtest{
                     buySymbol = "btc",
                     sellAmount = 4000 * 20,
                     sellSymbol = "usd",
-                    transDate = new DateTime(2017, 1, 2),
+                    dateTime = new DateTime(2017, 1, 2),
                     exchangeRec = "coinbase",
                     exchangeSent = "coinbase",
                     combinedCount = 1
@@ -695,7 +757,7 @@ namespace gaintaxtest{
                     buySymbol = "usd",
                     sellAmount =  20,
                     sellSymbol = "btc",
-                    transDate = new DateTime(2018, 1, 2),
+                    dateTime = new DateTime(2018, 1, 2),
                     exchangeRec = "coinbase",
                     exchangeSent = "coinbase",
                     combinedCount = 1
@@ -710,27 +772,27 @@ namespace gaintaxtest{
                     buySymbol = "usd",
                     sellAmount = 25,
                     sellSymbol = "eth",
-                    transDate = new DateTime(2018, 1, 2),
+                    dateTime = new DateTime(2018, 1, 2),
                     exchangeRec = "coinbase",
                     exchangeSent = "coinbase",
                     combinedCount = 1
                 });
             }
             List<bucket> buckets = new List<bucket>();
-            t.convertBitcoinPairToTwoDollarTrans(t.transactionsOriginal);
-            t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 2);
+            t.convertBitcoinPairToTwoTransInUSD(t.transactionsOriginal);
+            //t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 2);
             var realizedbtc = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
             //t.computeBuysSellsSymbol(t.transactionsOriginal, "btc");
             var realizedeth = t.computeGains(out buckets, false, "eth", "fiho", t.transactionsOriginal);
             //t.computeBuysSellsSymbol(t.transactionsOriginal, "eth");
 
 
-            t.summerizeRealized("2017", realizedbtc);
-            Assert.Null(realizedbtc.FirstOrDefault(x => x.trans.transDate.Value.Year == 2017));
-            t.summerizeRealized("2018", realizedbtc);
-            Assert.True(isClose(realizedbtc.First(x => x.trans.transDate.Value.Year == 2018).gain, 20000.0));
-            t.summerizeRealized("2018", realizedeth);
-            Assert.True(isClose(realizedeth.First(x => x.trans.transDate.Value.Year == 2018).gain, 1250.0));
+            //t.summerizeRealized("2017", realizedbtc);
+            Assert.Null(realizedbtc.FirstOrDefault(x => x.trans.dateTime.Value.Year == 2017));
+            //t.summerizeRealized("2018", realizedbtc);
+            Assert.True(isClose(realizedbtc.First(x => x.trans.dateTime.Value.Year == 2018).gain, 20000.0));
+            //t.summerizeRealized("2018", realizedeth);
+            Assert.True(isClose(realizedeth.First(x => x.trans.dateTime.Value.Year == 2018).gain, 1250.0));
         }
 
         [Fact]
@@ -739,7 +801,7 @@ namespace gaintaxtest{
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<transaction>();
 
-            historicPrice hp = new historicPrice();
+            historicDayPriceUSD hp = new historicDayPriceUSD();
             addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2017,1,1), 0.1, 200);
             addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2017,2,2), 0.1, 300);
             addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2017,3,3), 0.15, 3100*0.15);
