@@ -699,9 +699,14 @@ public static T ReadFromXmlFile<T>(string filePath) where T : new()
             gainTax.combineTransactionsInHourLongWindow_MODIFIES_transactions(gainTax.transactionsOriginal, 24, false, 0.5);
             gainTax.useAlternativeDateForSellSinceAfterBuy_MODIFIES_transactions(gainTax.transactionsOriginal);
 
-            var realizedbtc = gainTax.computeGains(out buckets, true, "btc", "fiho", gainTax.transactionsOriginal);
-            gainTax.printListListString(gainTax.summerizeBucketsToStringList(buckets), "\t", 24);
-            gainTax.printListListString(gainTax.realizedTransToString(realizedbtc));
+            List<string> symbolsICareAbout = ["btc"];
+
+            foreach(var symbol in symbolsICareAbout)
+            {
+                var realizedbtc = gainTax.computeGains(out buckets, true, symbol, "fiho", gainTax.transactionsOriginal);
+                gainTax.printListListString(gainTax.summerizeBucketsToStringList(buckets), "\t", 24);
+                gainTax.printListListString(gainTax.realizedTransToString(realizedbtc));
+            }
 
             Console.WriteLine("End");
         }
