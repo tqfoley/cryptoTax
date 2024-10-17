@@ -1,4 +1,5 @@
 ﻿using gaintaxlibrary;
+using System.Xml.Serialization;
 
 public static class StringExtensions
 {
@@ -16,8 +17,58 @@ namespace main
 {
     static class GainTaxClass
     {
-        private static void addMyTransactions(List<transaction> mytrans)
+
+/// <summary>
+/// Writes the given object instance to an XML file.
+/// <para>Only Public properties and variables will be written to the file. These can be any type though, even other classes.</para>
+/// <para>If there are public properties/variables that you do not want written to the file, decorate them with the [XmlIgnore] attribute.</para>
+/// <para>Object type must have a parameterless constructor.</para>
+/// </summary>
+/// <typeparam name="T">The type of object being written to the file.</typeparam>
+/// <param name="filePath">The file path to write the object instance to.</param>
+/// <param name="objectToWrite">The object instance to write to the file.</param>
+/// <param name="append">If false the file will be overwritten if it already exists. If true the contents will be appended to the file.</param>
+public static void WriteToXmlFile<T>(string filePath, T objectToWrite, bool append = false) where T : new()
+{
+    TextWriter writer = null;
+    try
     {
+        var serializer = new XmlSerializer(typeof(T));
+        writer = new StreamWriter(filePath, append);
+        serializer.Serialize(writer, objectToWrite);
+    }
+    finally
+    {
+        if (writer != null)
+            writer.Close();
+    }
+}
+
+/// <summary>
+/// Reads an object instance from an XML file.
+/// <para>Object type must have a parameterless constructor.</para>
+/// </summary>
+/// <typeparam name="T">The type of object to read from the file.</typeparam>
+/// <param name="filePath">The file path to read the object instance from.</param>
+/// <returns>Returns a new instance of the object read from the XML file.</returns>
+public static T ReadFromXmlFile<T>(string filePath) where T : new()
+{
+    TextReader reader = null;
+    try
+    {
+        var serializer = new XmlSerializer(typeof(T));
+        reader = new StreamReader(filePath);
+        return (T)serializer.Deserialize(reader);
+    }
+    finally
+    {
+        if (reader != null)
+            reader.Close();
+    }
+}
+
+        private static void addMyTransactions(List<transaction> mytrans)
+        {
         mytrans.Add(new transaction
         {
                 buyAmount = 1,
@@ -41,15 +92,46 @@ namespace main
                 exchangeSent = "",
                 combinedCount = 1
         });
-    }
+        }
 
         private static bool stringContainsIgnoreCase(this string source, string h)
         {
             return source.ToLower().Contains(h.ToLower());
         }
 
-        private static List<transaction> readFile20ColumnCSV(string filename = "../../trans20column.csv", DateTime? startdate = null)
+        private static List<transaction> readFile20ColumnCSV(string filename = "../../trans20Column.csv", DateTime? ignoreBeforeDate = null,
+                                int columnDateTime = 0,
+                                int columnBuyAmt = 3,
+                                int columnBuySym = 4,
+                                int columnSellAmt = 9,
+                                int columnSellSymb = 10,
+                                int columnExchangeReceive = 6,
+                                int columnExchangeSent = 13,
+                                int columnFee = 15)
         {
+            //0 Date,
+            //1 Type,
+            //2 Transaction ID,
+            //3 Received Quantity,
+            //4 Received Currency,
+            //5 Received Cost Basis (USD),
+            //6 Received Wallet,
+            //7 Received Address,
+            //8 Received Comment,
+            //9 Sent Quantity,
+            //10 Sent Currency,
+            //11 Sent Cost Basis (USD),
+            //12 Sent Wallet,
+            //13 Sent Address,Sent Comment,
+            //14 Fee Amount,
+            //15 Fee Currency,
+            //16 Fee Cost Basis (USD),
+            //17 Realized Return (USD),
+            //18 Fee Realized Return (USD),
+            //19 Transaction Hash
+
+                                
+
             List<transaction> ret = new List<transaction>();
 
             string[] linesProblemsNewLines = File.ReadAllLines(filename);
@@ -115,6 +197,18 @@ namespace main
 
                         if (transType.stringMatchesIgnoreCase("Mint"))
                         {
+                        }
+                        else if (transType.stringMatchesIgnoreCase("ADD_LIQUIDITY".ToLower()))
+                        {
+
+                        }
+                        else if (transType.stringMatchesIgnoreCase("BRIDGE".ToLower()))
+                        {
+
+                        }
+                        else if (transType.stringMatchesIgnoreCase("REMOVE_LIQUIDITY".ToLower()))
+                        {
+
                         }
                         else if (transType.stringMatchesIgnoreCase("margin_rebate"))
                         {
@@ -244,7 +338,7 @@ namespace main
                             {
 
                                 //0 Date,
-                                //1Type,
+                                //1 Type,
                                 //2 Transaction ID,
                                 //3 Received Quantity,
                                 //4 Received Currency,
@@ -265,18 +359,18 @@ namespace main
                                 //19 Fee Realized Return (USD)
 
                                 transaction t = new transaction();
-                                t.dateTime = DateTime.Parse(col[0]);
-                                if (startdate == null || t.dateTime.Value.Date >= startdate.Value.Date)
+                                t.dateTime = DateTime.Parse(col[columnDateTime]);
+                                if (ignoreBeforeDate == null || t.dateTime.Value.Date >= ignoreBeforeDate.Value.Date)
                                 {
                                     t.optionalSecondTansDate = null;
 
-                                    if (double.TryParse(col[3], out t.buyAmount))
+                                    if (double.TryParse(col[columnBuyAmt], out t.buyAmount))
                                     {
-                                        t.buySymbol = col[4].ToLower();
+                                        t.buySymbol = col[columnBuySym].ToLower();
                                     }
                                     else
                                     {
-                                        t.buySymbol = col[4].ToLower() + "UNKNOWN AMOUNT";
+                                        t.buySymbol = col[columnBuySym].ToLower() + "UNKNOWN AMOUNT";
                                         t.buyAmount = 0;
                                     }
                                     //t.buyAmount = double.Parse(col[3]);
@@ -284,19 +378,19 @@ namespace main
 
                                     //t.sellAmount = double.Parse(col[9]);
                                     //t.sellSymbol = col[10].ToLower();
-                                    if (double.TryParse(col[9], out t.sellAmount))
+                                    if (double.TryParse(col[columnSellAmt], out t.sellAmount))
                                     {
-                                        t.sellSymbol = col[10].ToLower();
+                                        t.sellSymbol = col[columnSellSymb].ToLower();
                                     }
                                     else
                                     {
-                                        t.sellSymbol = col[10].ToLower() + "UNKNOWN AMOUNT";
+                                        t.sellSymbol = col[columnSellSymb].ToLower() + "UNKNOWN AMOUNT";
                                         t.sellAmount = 0;
                                     }
                                     
 
-                                    t.exchangeRec = col[6].ToLower();
-                                    t.exchangeSent = col[13].ToLower();
+                                    t.exchangeRec = col[columnExchangeReceive].ToLower();
+                                    t.exchangeSent = col[columnExchangeSent].ToLower();
 
                                     if (linenumber % 1000 == 0)
                                     {
@@ -352,7 +446,8 @@ namespace main
 
                                     double amountfee = 0; 
                                     string symbolfee = "";
-                                    if (double.TryParse(col[15], out amountfee))
+                                    string test = col[columnFee];
+                                    if (double.TryParse(col[columnFee], out amountfee))
                                     {
 
                                         symbolfee = col[16].ToLower();
@@ -445,20 +540,114 @@ namespace main
                                     }
                                     else if (t.buyAmount / t.sellAmount > 1000111.0 || t.sellAmount / t.buyAmount > 1000111.0)
                                     {
+                                        //pepe hits this
                                         Console.WriteLine("BAD " + t.dateTime.Value + " " + t.sellSymbol + " " + t.buySymbol + " " + t.buyAmount);
                                     }
                                     else
                                     {
                                         ret.Add(t);
                                     }
-                                    //}
+                                    
                                 }
                             }
                         }
                         else
                         {
+                            string g = line;
                             throw new Exception("Error Unexpcted string");
                         }
+                    }
+                }
+            }
+            return ret;
+        }
+
+        private static List<transaction> readSimpleFile10ColumnCSV( string filename = "../../transSimple10Column.csv", DateTime? ignoreBeforeDate = null,
+                                int columnDate = 0,
+                                int columnSymbol = 3,
+                                int columnAction = 4,
+                                int columnQty = 5,
+                                int columnAmt = 7)
+        {
+            //date, 0
+            //time, 1
+            //type, 2
+            //symbol, 3
+            //action,  4
+            //quantity, 5
+            //price, 6 
+            //amount, 7
+            //fees,   8
+            //details 9
+
+            List<transaction> ret = new List<transaction>();
+            string[] lines = File.ReadAllLines(filename);
+
+            //double realizedgain = 0;
+            int linenumber = 0;
+            foreach (string line in lines)
+            {
+                string[] col = line.Split(",");
+                linenumber++;
+
+                if (col.Length < 9 || linenumber < 2)
+                {
+                    int g = 0;
+                }
+                else
+                {
+                    
+                    if (ignoreBeforeDate == null || DateTime.Parse(col[columnDate]) >= ignoreBeforeDate.Value.Date)
+                    {
+                    if (col[columnAction].Contains("Buy") ||
+                        col[columnAction].Contains("BTO") || // buy to open
+                        col[columnAction].Contains("BTC")) // buy to close
+                    {
+                        transaction t = new transaction();
+                        t.buySymbol = col[columnSymbol].ToLower();
+                        t.sellSymbol = "usd";
+                        t.exchangeRec = "robinhood";
+                        t.exchangeSent = "robinhood";
+                        t.buyAmount = double.Parse(col[columnQty]); //quantity
+                        t.sellAmount = double.Parse(col[columnAmt]); //amount
+                        t.dateTime = DateTime.Parse(col[columnDate]);
+                        t.feeSymbol = "";
+                        t.feeAmount = 0;
+                        t.combinedCount = 0;
+                        if (t.buySymbol.Contains("btc") || t.buySymbol.Contains("eth") || t.buySymbol.Contains("sol"))
+                        {
+                            t.feeSymbol = "usd";
+                            t.feeAmount = 0.0045 * t.sellAmount;
+                            t.altFeeSymbol = "";
+                            t.altFeeAmount = 0;
+                        }
+                        ret.Add(t);
+                    }
+
+                    if (col[columnAction].Contains("Sell") ||
+                        col[columnAction].Contains("STO") || // sell to open
+                        col[columnAction].Contains("STC")) // sell to close
+                    {
+                        transaction t = new transaction();
+                        t.buySymbol = "usd";
+                        t.sellSymbol = col[columnSymbol].ToLower();
+                        t.exchangeRec = "robinhood";
+                        t.exchangeSent = "robinhood";
+                        t.buyAmount = double.Parse(col[columnAmt]); //amount 
+                        t.sellAmount = double.Parse(col[columnQty]); //quantity
+                        t.dateTime = DateTime.Parse(col[columnDate]);
+                        t.feeSymbol = "";
+                        t.feeAmount = 0;
+                        t.combinedCount = 0;
+                        if(t.sellSymbol.Contains("btc") || t.sellSymbol.Contains("eth") || t.sellSymbol.Contains("sol"))
+                        {
+                            t.feeSymbol = "usd";
+                            t.feeAmount = 0.0045 * t.buyAmount;
+                            t.altFeeSymbol = "";
+                            t.altFeeAmount = 0;
+                        }
+                        ret.Add(t);
+                    }
                     }
                 }
             }
@@ -468,18 +657,53 @@ namespace main
         static void Main(string[] args)
         {
             gaintaxlibrary.ClassGainTax.Go();
+            var trans = readFile20ColumnCSV("../../trans20Column.csv", new DateTime(2020, 1, 1));
+            var transSimple = readSimpleFile10ColumnCSV("../../transSimple10Column.csv", new DateTime(2020, 1, 1));
+            foreach(var ts in transSimple)
+            {
+                trans.Add(ts);
+            }
+            
+            string initialBuyFileName = "./initialBuys.xml";
+            if(!File.Exists(initialBuyFileName))
+            {
+                List<transaction> initialBTCBuys = [
+                 new transaction
+                {
+                    buyAmount = 1,
+                    buySymbol = "btc",
+                    sellAmount = 750.0 * 1,
+                    sellSymbol = "usd",
+                    dateTime = new DateTime(2013, 12, 2),
+                    exchangeRec = "MtGox",
+                    exchangeSent = "MtGox",
+                    combinedCount = 0
+                }
+                ];
+                WriteToXmlFile(initialBuyFileName, initialBTCBuys);
+            }
 
-            var trans = readFile20ColumnCSV();
+            var initialBTCBuysData = ReadFromXmlFile<List<transaction> >(initialBuyFileName);
 
-            ClassGainTax t = new ClassGainTax();
-            t.transactionsOriginal = trans;//new List<transaction>();
-            t.transactionsOriginal= t.transactionsOriginal.OrderBy(x => x.dateTime.Value).ToList();
+            foreach(var initialBuy in initialBTCBuysData)
+            {
+                trans.Add(initialBuy);
+            }
+
+            ClassGainTax gainTax = new ClassGainTax();
+            gainTax.transactionsOriginal = trans;//new List<transaction>();
+            gainTax.transactionsOriginal= gainTax.transactionsOriginal.OrderBy(x => x.dateTime.Value).ToList();
 
             List<bucket> buckets = new List<bucket>();
-            var realizedbtc = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
 
-            //addMyTransactions());
+            gainTax.combineTransactionsInHourLongWindow_MODIFIES_transactions(gainTax.transactionsOriginal, 24, false, 0.5);
+            gainTax.useAlternativeDateForSellSinceAfterBuy_MODIFIES_transactions(gainTax.transactionsOriginal);
 
+            var realizedbtc = gainTax.computeGains(out buckets, true, "btc", "fiho", gainTax.transactionsOriginal);
+            gainTax.printListListString(gainTax.summerizeBucketsToStringList(buckets), "\t", 24);
+            gainTax.printListListString(gainTax.realizedTransToString(realizedbtc));
+
+            Console.WriteLine("End");
         }
     }
 }

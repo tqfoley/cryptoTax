@@ -52,7 +52,6 @@ namespace gaintaxtest{
                 });
         }
 
-
         [Fact]
         public void HistoricPriceSimple()
         {
@@ -103,17 +102,26 @@ namespace gaintaxtest{
                     combinedCount = 0
                 });
 
-            List<bucket> buckets = new List<bucket>();
             t.convertBitcoinPairToTwoTransInUSD(t.transactionsOriginal);
 
+            List<bucket> buckets = new List<bucket>();
             var realizedbtc = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
-            var realizedeth = t.computeGains(out buckets, false, "eth", "fiho", t.transactionsOriginal);
+            var bucketsString = t.summerizeBucketsToStringList(buckets);
 
+            List<bucket> bucketsEth = new List<bucket>();
+            var realizedeth = t.computeGains(out bucketsEth, false, "eth", "fiho", t.transactionsOriginal);
+            var bucketsEthString = t.summerizeBucketsToStringList(bucketsEth);
+
+            Assert.NotEmpty(bucketsString.Find(x => x.Exists(x=> x == "Bucket Price: 2000")));
+            Assert.NotEmpty(bucketsString.Find(x => x.Exists(x=> x == "Amt: 0.8")));
+            Assert.NotEmpty(bucketsString.Find(x => x.Exists(x=> x == "Bucket Price: 3500")));
+            Assert.NotEmpty(bucketsString.Find(x => x.Exists(x=> x == "Amt: 0.1")));
             Assert.True(isClose(realizedbtc.First(x => x.trans.dateTime.Value.Year == 2018).gain, 100.0));
+            
+            Assert.NotEmpty(bucketsEthString.Find(x => x.Exists(x=> x == "Bucket Price: 100")));
+            
             Assert.True(isClose(realizedeth.First(x => x.trans.dateTime.Value.Year == 2018).gain, 150.0));
         }
-
-
 
         [Fact]
         public void AddTransactions()
@@ -251,7 +259,6 @@ namespace gaintaxtest{
             var h = realizedbtc.First();
             Assert.True(isClose(h.gain, 5400.0));
         }
-
 
         [Fact]
         public void AddManyTransactionsTwoSellsOnSameDay()
@@ -816,7 +823,7 @@ namespace gaintaxtest{
 
             var realizedTrans38 = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
             var t22 = t.realizedTransToString(realizedTrans38);
-            t.printListListString(7, "\t", t22);
+            t.printListListString(t22, "\t", 7);
 
             int date1 = 0;
             int sellamount = 1;
@@ -841,5 +848,4 @@ namespace gaintaxtest{
             Assert.Equal(t22.First(x => x[date1].Contains("5/5/2017") && isClose(float.Parse(x[sellamount]), 0.12) && x[buyavg].Contains("avg500"))[gain], "112");
         }
     }
-
 }

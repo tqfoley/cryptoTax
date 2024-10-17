@@ -123,6 +123,7 @@ namespace gaintaxlibrary
                 return true;
             return false;
         }
+
         public bool IsTransactionMarkedDeleted(transaction t)
         {
             if(t.buySymbol.Contains("deleted"))
@@ -156,6 +157,7 @@ namespace gaintaxlibrary
             //t.transDate = new DateTime(2017, 1, 1) ;
 
         }
+
         
         public void combineTwoTransactions(transaction a, transaction b, int timeSpanHours, List<transaction> transactionsCheck, double combineSensetivity)
         {
@@ -164,8 +166,8 @@ namespace gaintaxlibrary
             double originalSellAmount = 0;
 
 
-            if ((a.buySymbol == b.buySymbol &&
-                a.sellSymbol == b.sellSymbol) &&
+            if (a.buySymbol == b.buySymbol &&
+                a.sellSymbol == b.sellSymbol &&
                 a.dateTime.Value.Add(new TimeSpan(timeSpanHours, 0, 0)) > b.dateTime &&
                 a.dateTime.Value.Subtract(new TimeSpan(timeSpanHours, 0, 0)) < b.dateTime &&
                 isCloseToCombine(a.sellAmount / a.buyAmount,
@@ -173,6 +175,8 @@ namespace gaintaxlibrary
                 a.dateTime.Value.Year == b.dateTime.Value.Year
                 )
             {
+                
+
                 //originalBuyAmount = a.buyAmount;
                 //originalSellAmount = a.sellAmount;
                 a.buyAmount += b.buyAmount;
@@ -220,6 +224,7 @@ namespace gaintaxlibrary
                         a.optionalSecondTansDate = b.dateTime.Value;
                     }
                 }
+
                 MarkTransactionInsignificant(b);
                 a.combinedCount = a.combinedCount + 1 + b.combinedCount;
                 if (a.combinedCount > 51153 || b.combinedCount > 51153)
@@ -237,11 +242,37 @@ namespace gaintaxlibrary
                 }
                 //Console.WriteLine("bad trying to combine but not purchased near same amount");
             }
-
         }
 
+        public void useAlternativeDateForSellSinceAfterBuy_MODIFIES_transactions(List<transaction> transactions)
+        {
+            foreach(var t in transactions)
+            {
+                if(t.buySymbol.Contains("usd")) // this is a sell
+                {
+                    if(t.optionalSecondTansDate != null)
+                    {
+                        DateTime saveDateTime = t.optionalSecondTansDate.Value;
 
-        public int combineTransactionsInHourLongWindow_MODIFIES_transactions(List<transaction> transactions, int timeSpanHours, bool limitOnlyUSDTransactions = true, double combineSensitivityPercentDiff = 0.05)
+                    Console.WriteLine("sells should be after buys but still in the same year");
+                    if(t.dateTime < t.optionalSecondTansDate)
+                    {
+                        if(t.dateTime.Value.Year == t.optionalSecondTansDate.Value.Year)
+                        {
+                            t.dateTime = t.optionalSecondTansDate.Value;
+                            t.optionalSecondTansDate = saveDateTime;
+                        }
+                        else{
+                            t.dateTime = new DateTime(t.dateTime.Value.Year, 12,31).AddSeconds(-5); // 5 seconds before midnight
+                            t.optionalSecondTansDate = saveDateTime;
+                        }
+                    }
+                    }
+                }
+            }
+        }
+
+        public int combineTransactionsInHourLongWindow_MODIFIES_transactions(List<transaction> transactions, int timeSpanHours, bool limitOnlyUSDTransactions = true, double combineSensitivityPercentDiffOver100 = 0.05)
         {
             if (timeSpanHours == 22)
             {
@@ -294,9 +325,9 @@ namespace gaintaxlibrary
                            )
                         {
                             if (isCloseToCombine(first.sellAmount / first.buyAmount,
-                                transactions.ElementAt(j).sellAmount / transactions.ElementAt(j).buyAmount, combineSensitivityPercentDiff) ||
+                                transactions.ElementAt(j).sellAmount / transactions.ElementAt(j).buyAmount, combineSensitivityPercentDiffOver100) ||
                                 isCloseToCombine(first.buyAmount / first.sellAmount,
-                                transactions.ElementAt(j).buyAmount / transactions.ElementAt(j).sellAmount, combineSensitivityPercentDiff)
+                                transactions.ElementAt(j).buyAmount / transactions.ElementAt(j).sellAmount, combineSensitivityPercentDiffOver100)
                                 )
                             {
                                 if (false//(first.transDate.Value.Day == 1 && first.transDate.Value.Month == 1) ||
@@ -313,14 +344,14 @@ namespace gaintaxlibrary
                                     //    int h = 0;
                                     //}
                                     //combineTwoTransactions(first, transactions.ElementAt(j), timeSpanHours, transactions, combineSensetivity);
-                                    combineTwoTransactions(first, transactions.ElementAt(j), timeSpanHours, transactions, combineSensitivityPercentDiff);
+                                    combineTwoTransactions(first, transactions.ElementAt(j), timeSpanHours, transactions, combineSensitivityPercentDiffOver100);
                                     combined++;
                                     //currentcombined++;
                                 }
                             }
                             else
                             {
-                                if (combineSensitivityPercentDiff < 0.15)
+                                if (combineSensitivityPercentDiffOver100 < 0.15)
                                 {
                                     Console.WriteLine("large chnage in " + timeSpanHours + " hours  " + first.dateTime + first.buySymbol);
                                 }
@@ -463,6 +494,7 @@ namespace gaintaxlibrary
         public List<realizedTransaction> computeGains(out List<bucket> buckets, bool combineRealizedTransactionOnSameDay, string symbol, string mode, List<transaction> transactions, DateTime? endDate = null, bool printIndividualTrans = false)
         {
             Console.WriteLine("gains for " + symbol);
+            transactions = transactions.OrderBy(x => x.dateTime.Value).ToList();
             
             List<realizedTransaction> realizedTransactions = new List<realizedTransaction>();
             
@@ -477,7 +509,7 @@ namespace gaintaxlibrary
                 new KeyValuePair<string, string>(symbol, "usd")
             };
 
-            DateOnly prevDate = new DateOnly(2016, 12, 31);
+            DateOnly prevDate = new DateOnly(1970, 1, 1);
             double lastExchangePrice = 0;
 
             int countTrans = 0;
@@ -877,6 +909,11 @@ namespace gaintaxlibrary
             Console.WriteLine("UNREALIZED     " + "\tprofit:" + (unrealizedProfit / 1000).ToString("0.###") + "K AMOUNT TO SELL:" + averageBuyAmount);
             // end unrealized
 
+
+
+            // COMBINE on same day
+            // COMBINE on same day
+            // COMBINE on same day
             if (combineRealizedTransactionOnSameDay)
             {
                 Console.WriteLine("combine realized");
@@ -906,12 +943,25 @@ namespace gaintaxlibrary
                         currentCombineTrans.gain += g.gain;
                         currentCombineTrans.amount += g.amount;
                         currentCombineTrans.sellAmountReceivedUsuallyDollars += g.sellAmountReceivedUsuallyDollars;
-                        currentCombineTrans.trans = null; //fix later todo trevor
-                        currentCombineTrans.initialEntryBuySplitTrans = null; //fix later todo trevor
-                        //foreach(var initialEntryBuySplitTran in g.initialEntryBuySplitTrans)
-                        //{
-                        //    currentCombineTrans.initialEntryBuySplitTrans.Add(initialEntryBuySplitTrans);
-                        //}
+                        
+                        if(currentCombineTrans.trans.sellSymbol != g.trans.sellSymbol)
+                            throw new Exception("different sell symbol");
+                        if(currentCombineTrans.trans.sellSymbol != g.trans.sellSymbol)
+                            throw new Exception("different sell symbol");
+
+                        currentCombineTrans.trans.buyAmount += g.trans.buyAmount;
+                        currentCombineTrans.trans.sellAmount += g.trans.sellAmount;
+                        if(currentCombineTrans.trans.altFeeAmount != null && g.trans.altFeeAmount != null)
+                        {
+                            currentCombineTrans.trans.altFeeAmount += g.trans.altFeeAmount;
+                        }
+                        currentCombineTrans.trans.feeAmount += g.trans.feeAmount;
+                        currentCombineTrans.trans.combinedCount += g.trans.combinedCount;
+
+                        foreach(var initialEntryBuySplitTran in g.initialEntryBuySplitTrans)
+                        {
+                            currentCombineTrans.initialEntryBuySplitTrans.Add(initialEntryBuySplitTran);
+                        }
                     }
 
                 }
@@ -921,241 +971,12 @@ namespace gaintaxlibrary
                 }
                 return combineRealizedTrans;
             }
+            // END COMBINE on same day
+            // END COMBINE on same day
+            // END COMBINE on same day
 
             return realizedTransactions;
         }
-
-        /*private realizedTransaction deepCopy(realizedTransaction a)
-        { delete later in class now
-            realizedTransaction b = new realizedTransaction();
-            b.amount = a.amount;
-            b.gain = a.gain;
-            b.initialEntryBuySplitTrans = new List<splitTransaction>();
-            foreach(var t in a.initialEntryBuySplitTrans){
-                var r = new splitTransaction{portion = t.portion, trans = new transaction()};
-                r.trans = t.trans.deepCopy();
-                b.initialEntryBuySplitTrans.Add(r);
-            }
-            b.sellAmountReceivedUsuallyDollars = a.sellAmountReceivedUsuallyDollars;
-            b.trans = a.trans.deepCopy();
-            
-            return b;
-        }*/
-
-        /*
-        public void computeBuysSellsSymbol(List<transaction> transactions, string symbol)
-        {
-            Console.WriteLine(symbol);
-
-            List<string> taxyear = new List<string>();
-            taxyear.Add("2017");
-            taxyear.Add("2018");
-            taxyear.Add("2019");
-            taxyear.Add("2020");
-            taxyear.Add("2021");
-            taxyear.Add("2022");
-            taxyear.Add("2023");
-            taxyear.Add("2024");
-            double totalAmount = 0;
-
-            foreach (var year in taxyear)
-            {
-                List<KeyValuePair<string, string>> ValidPairSymbols = new List<KeyValuePair<string, string>> {
-                new KeyValuePair<string, string>(symbol, "usd")
-                };
-
-                List<total> totalBuy = new List<total>();
-                List<total> totalSell = new List<total>();
-                //List<total> totalBoth = new List<total>();
-
-                //buys
-                foreach (transaction t in transactions)
-                {
-                    bool includeTransDueToYear = false;
-                    if (year == null)
-                    {
-                        includeTransDueToYear = false;
-                    }
-                    else
-                    {
-                        if (t.transDate.ToString().Contains(year))
-                        {
-                            includeTransDueToYear = true;
-
-                        }
-                    }
-
-                    if (includeTransDueToYear)
-                    {
-                        var specificPair = ValidPairSymbols.FirstOrDefault(s =>
-                        s.Key == t.buySymbol.ToLower() && s.Value == t.sellSymbol.ToLower());
-
-                        if (specificPair.Equals(default(KeyValuePair<string, string>)))
-                        {
-                            //ignore
-                            //Console.WriteLine("ignore");
-                        }
-                        else //match exists
-                        {
-                            if (totalBuy.FirstOrDefault(t =>
-                            t.buySymbol.ToLower() == specificPair.Key &&
-                            t.sellSymbol.ToLower() == specificPair.Value) == null)// does entry exist? if not add
-                            {
-                                total r = new total();
-                                r.buySymbol = t.buySymbol;
-                                r.sellSymbol = t.sellSymbol;
-                                r.Amount = t.buyAmount;
-                                r.Average = t.sellAmount / t.buyAmount;
-                                totalBuy.Add(r); // add
-                            }
-                            else
-                            {
-                                var specificTotal = totalBuy.FirstOrDefault(t =>
-                                t.buySymbol.ToLower() == specificPair.Key &&
-                                t.sellSymbol.ToLower() == specificPair.Value);
-
-                                if (specificTotal == null)
-                                {
-                                    throw new Exception("bad");
-                                }
-                                else
-                                {
-                                    double totalValue = specificTotal.Average * specificTotal.Amount + t.sellAmount;
-                                    specificTotal.Amount += t.buyAmount;
-                                    specificTotal.Average = totalValue / specificTotal.Amount;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                //sells
-                foreach (transaction t in transactions)
-                {
-                    bool includeTransDueToYear = false;
-                    if (year == null)
-                    {
-                        includeTransDueToYear = true;
-                    }
-                    else
-                    {
-                        if (t.transDate.ToString().Contains(year))
-                        {
-                            includeTransDueToYear = true;
-
-                        }
-                    }
-
-                    if (includeTransDueToYear)
-                    {
-                        var specificPair = ValidPairSymbols.FirstOrDefault(s =>
-                        s.Key == t.sellSymbol.ToLower() &&
-                        s.Value == "usd");
-                        if (specificPair.Equals(default(KeyValuePair<string, string>)))
-                        {
-                            //ignore
-                            //Console.WriteLine("ignore");
-                        }
-                        else
-                        {
-                            if (totalSell.FirstOrDefault(t =>
-                            t.buySymbol.ToLower() == "usd" &&
-                            t.sellSymbol.ToLower() == specificPair.Key) == null)// does entry exist? if not add
-                            {
-                                total r = new total();
-                                r.buySymbol = t.buySymbol;
-                                r.sellSymbol = t.sellSymbol;
-                                r.Amount = t.sellAmount; // sold something like btc
-                                r.Average = t.buyAmount / t.sellAmount; // buy something like usd
-                                totalSell.Add(r); // add
-                            }
-                            else
-                            {
-                                var specificTotal = totalSell.FirstOrDefault(t =>
-                                t.buySymbol.ToLower() == "usd" &&
-                                t.sellSymbol.ToLower() == specificPair.Key);
-
-                                if (specificTotal == null)
-                                {
-                                    throw new Exception("bad");
-                                }
-                                else
-                                {
-                                    double totalValue = specificTotal.Average * specificTotal.Amount + t.buyAmount;
-                                    specificTotal.Amount += t.sellAmount;
-                                    specificTotal.Average = totalValue / specificTotal.Amount;
-                                }
-                            }
-
-                            //total u = totalsSell.First(s => s.buySymbol == t.buySymbol && s.sellSymbol == t.sellSymbol);
-
-                            //if (u is null)
-                            {
-                            //    throw new Exception("bad");
-                            }
-                            //else
-                            {
-                                // t is current transaction
-                             //   double totalValue = u.Average * u.Amount + t.buyAmount;
-                               // u.Amount += t.sellAmount;
-                                // update the average
-                               // u.Average = totalValue / u.Amount;
-                            }
-
-                        }
-                    }
-                }
-                if (totalBuy.Count != 1 && totalSell.Count != 1)
-                {//
-                 // throw new Exception("ds");
-
-                }
-                else if (totalSell.Count != 1)
-                {
-                    totalAmount += totalBuy.First().Amount;
-                }
-
-                else if (totalBuy.Count != 1)
-                {
-                    totalAmount -= totalSell.First().Amount;
-                }
-                else
-                {
-                    totalAmount += totalBuy.First().Amount - totalSell.First().Amount;
-                }
-
-                //totals.Sort();
-                //totalsSell.Sort();
-
-                CultureInfo culture;
-                culture = CultureInfo.CreateSpecificCulture("en-US");
-
-                List<string> seenSymbol = new List<string?>();
-
-                string doubleFormat = "0.####";
-
-                foreach (total mysell in totalSell)
-                {
-                    if (mysell.sellSymbol == "eth")
-                    {
-                        //Console.WriteLine(mysell.sellSymbol + " sell amt:" + mysell.Amount + " avg:" + mysell.Average);
-
-                    }
-                }
-
-                foreach (total mybuy in totalBuy)
-                {
-                    if (mybuy.buySymbol == "eth")
-                    {
-                        //Console.WriteLine(mybuy.sellSymbol + " buy amt:" + mybuy.Amount + " avg:" + mybuy.Average);
-
-                    }
-                }
-                Console.WriteLine(year + " totalAmount " + totalAmount);
-            }
-
-        }*/
-
 
         public void summerizeRealized(string year, List<realizedTransaction> realizedTransactions)
         {
@@ -1608,9 +1429,8 @@ namespace gaintaxlibrary
         }
 
         
-        public void printListListString(int stringLimit, string spacingString, List<List<string>> data)
+        public void printListListString(List<List<string>> data, string spacingString = " \t",  int stringLimit=12)
         {
-            stringLimit = 12;
             foreach (var d in data)
             {
                 foreach(string s in d)
@@ -1633,6 +1453,40 @@ namespace gaintaxlibrary
             }
         }
 
+        public List<List<string>> summerizeBucketsToStringList(List<bucket> buckets)
+        {
+            List<List<string>> ret = new List<List<string>>();
+            string doubleFormat = "0.####";
+
+            double totalAmount = 0;
+            double totalPrice = 0;
+
+            int count = 0;
+            foreach(var b in buckets)
+            {
+                count++;
+                totalAmount += b.amount;
+                totalPrice += (b.price * b.amount);
+                if(buckets.Count - 5 < count)
+                {
+                    List<string> bucketStrings = [
+                        "Bucket Price: " + b.price, 
+                        "Amt: " + b.amount.ToString(doubleFormat)];
+                    ret.Add(bucketStrings);
+                }
+            }
+
+            double avgPrice = totalPrice / totalAmount;
+
+            List<string> summary =
+            [
+                buckets.First().symbol + " Avg Price: " + avgPrice.ToString(doubleFormat),
+                "Amt: " + totalAmount.ToString(doubleFormat),
+            ];
+            ret.Add(summary);
+            return ret;
+        }
+
         public static void Go()
         {
             Console.WriteLine("Tax Calculator Library");
@@ -1641,3 +1495,236 @@ namespace gaintaxlibrary
     }
 
 }
+
+
+        /*private realizedTransaction deepCopy(realizedTransaction a)
+        { delete later in class now
+            realizedTransaction b = new realizedTransaction();
+            b.amount = a.amount;
+            b.gain = a.gain;
+            b.initialEntryBuySplitTrans = new List<splitTransaction>();
+            foreach(var t in a.initialEntryBuySplitTrans){
+                var r = new splitTransaction{portion = t.portion, trans = new transaction()};
+                r.trans = t.trans.deepCopy();
+                b.initialEntryBuySplitTrans.Add(r);
+            }
+            b.sellAmountReceivedUsuallyDollars = a.sellAmountReceivedUsuallyDollars;
+            b.trans = a.trans.deepCopy();
+            
+            return b;
+        }*/
+
+        /*
+        public void computeBuysSellsSymbol(List<transaction> transactions, string symbol)
+        {
+            Console.WriteLine(symbol);
+
+            List<string> taxyear = new List<string>();
+            taxyear.Add("2017");
+            taxyear.Add("2018");
+            taxyear.Add("2019");
+            taxyear.Add("2020");
+            taxyear.Add("2021");
+            taxyear.Add("2022");
+            taxyear.Add("2023");
+            taxyear.Add("2024");
+            double totalAmount = 0;
+
+            foreach (var year in taxyear)
+            {
+                List<KeyValuePair<string, string>> ValidPairSymbols = new List<KeyValuePair<string, string>> {
+                new KeyValuePair<string, string>(symbol, "usd")
+                };
+
+                List<total> totalBuy = new List<total>();
+                List<total> totalSell = new List<total>();
+                //List<total> totalBoth = new List<total>();
+
+                //buys
+                foreach (transaction t in transactions)
+                {
+                    bool includeTransDueToYear = false;
+                    if (year == null)
+                    {
+                        includeTransDueToYear = false;
+                    }
+                    else
+                    {
+                        if (t.transDate.ToString().Contains(year))
+                        {
+                            includeTransDueToYear = true;
+
+                        }
+                    }
+
+                    if (includeTransDueToYear)
+                    {
+                        var specificPair = ValidPairSymbols.FirstOrDefault(s =>
+                        s.Key == t.buySymbol.ToLower() && s.Value == t.sellSymbol.ToLower());
+
+                        if (specificPair.Equals(default(KeyValuePair<string, string>)))
+                        {
+                            //ignore
+                            //Console.WriteLine("ignore");
+                        }
+                        else //match exists
+                        {
+                            if (totalBuy.FirstOrDefault(t =>
+                            t.buySymbol.ToLower() == specificPair.Key &&
+                            t.sellSymbol.ToLower() == specificPair.Value) == null)// does entry exist? if not add
+                            {
+                                total r = new total();
+                                r.buySymbol = t.buySymbol;
+                                r.sellSymbol = t.sellSymbol;
+                                r.Amount = t.buyAmount;
+                                r.Average = t.sellAmount / t.buyAmount;
+                                totalBuy.Add(r); // add
+                            }
+                            else
+                            {
+                                var specificTotal = totalBuy.FirstOrDefault(t =>
+                                t.buySymbol.ToLower() == specificPair.Key &&
+                                t.sellSymbol.ToLower() == specificPair.Value);
+
+                                if (specificTotal == null)
+                                {
+                                    throw new Exception("bad");
+                                }
+                                else
+                                {
+                                    double totalValue = specificTotal.Average * specificTotal.Amount + t.sellAmount;
+                                    specificTotal.Amount += t.buyAmount;
+                                    specificTotal.Average = totalValue / specificTotal.Amount;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                //sells
+                foreach (transaction t in transactions)
+                {
+                    bool includeTransDueToYear = false;
+                    if (year == null)
+                    {
+                        includeTransDueToYear = true;
+                    }
+                    else
+                    {
+                        if (t.transDate.ToString().Contains(year))
+                        {
+                            includeTransDueToYear = true;
+
+                        }
+                    }
+
+                    if (includeTransDueToYear)
+                    {
+                        var specificPair = ValidPairSymbols.FirstOrDefault(s =>
+                        s.Key == t.sellSymbol.ToLower() &&
+                        s.Value == "usd");
+                        if (specificPair.Equals(default(KeyValuePair<string, string>)))
+                        {
+                            //ignore
+                            //Console.WriteLine("ignore");
+                        }
+                        else
+                        {
+                            if (totalSell.FirstOrDefault(t =>
+                            t.buySymbol.ToLower() == "usd" &&
+                            t.sellSymbol.ToLower() == specificPair.Key) == null)// does entry exist? if not add
+                            {
+                                total r = new total();
+                                r.buySymbol = t.buySymbol;
+                                r.sellSymbol = t.sellSymbol;
+                                r.Amount = t.sellAmount; // sold something like btc
+                                r.Average = t.buyAmount / t.sellAmount; // buy something like usd
+                                totalSell.Add(r); // add
+                            }
+                            else
+                            {
+                                var specificTotal = totalSell.FirstOrDefault(t =>
+                                t.buySymbol.ToLower() == "usd" &&
+                                t.sellSymbol.ToLower() == specificPair.Key);
+
+                                if (specificTotal == null)
+                                {
+                                    throw new Exception("bad");
+                                }
+                                else
+                                {
+                                    double totalValue = specificTotal.Average * specificTotal.Amount + t.buyAmount;
+                                    specificTotal.Amount += t.sellAmount;
+                                    specificTotal.Average = totalValue / specificTotal.Amount;
+                                }
+                            }
+
+                            //total u = totalsSell.First(s => s.buySymbol == t.buySymbol && s.sellSymbol == t.sellSymbol);
+
+                            //if (u is null)
+                            {
+                            //    throw new Exception("bad");
+                            }
+                            //else
+                            {
+                                // t is current transaction
+                             //   double totalValue = u.Average * u.Amount + t.buyAmount;
+                               // u.Amount += t.sellAmount;
+                                // update the average
+                               // u.Average = totalValue / u.Amount;
+                            }
+
+                        }
+                    }
+                }
+                if (totalBuy.Count != 1 && totalSell.Count != 1)
+                {//
+                 // throw new Exception("ds");
+
+                }
+                else if (totalSell.Count != 1)
+                {
+                    totalAmount += totalBuy.First().Amount;
+                }
+
+                else if (totalBuy.Count != 1)
+                {
+                    totalAmount -= totalSell.First().Amount;
+                }
+                else
+                {
+                    totalAmount += totalBuy.First().Amount - totalSell.First().Amount;
+                }
+
+                //totals.Sort();
+                //totalsSell.Sort();
+
+                CultureInfo culture;
+                culture = CultureInfo.CreateSpecificCulture("en-US");
+
+                List<string> seenSymbol = new List<string?>();
+
+                string doubleFormat = "0.####";
+
+                foreach (total mysell in totalSell)
+                {
+                    if (mysell.sellSymbol == "eth")
+                    {
+                        //Console.WriteLine(mysell.sellSymbol + " sell amt:" + mysell.Amount + " avg:" + mysell.Average);
+
+                    }
+                }
+
+                foreach (total mybuy in totalBuy)
+                {
+                    if (mybuy.buySymbol == "eth")
+                    {
+                        //Console.WriteLine(mybuy.sellSymbol + " buy amt:" + mybuy.Amount + " avg:" + mybuy.Average);
+
+                    }
+                }
+                Console.WriteLine(year + " totalAmount " + totalAmount);
+            }
+
+        }*/
+

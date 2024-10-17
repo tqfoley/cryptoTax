@@ -1,0 +1,3 @@
+date,time,type,symbol,action,quantity,price,amount,fees,details 
+8/5/2024,2:02:00 PM,crypto,BTC,Buy,0.002,55000.00,110.00,0,, 
+5/23/2024,9:50:00 AM,crypto,BTC,Buy,0.003,66666.66,200.00,0,, 
