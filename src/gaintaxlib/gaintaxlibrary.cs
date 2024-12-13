@@ -183,6 +183,7 @@ namespace gaintaxlibrary
                 a.sellAmount += b.sellAmount;
                 //a.exchangeRec = a.exchangeRec;
                 //a.exchangeSent = a.exchangeSent;
+
                 if (!a.exchangeRec.Contains("comb"))
                 {
                     a.exchangeRec += a.exchangeRec + " comb ";
@@ -1340,12 +1341,57 @@ namespace gaintaxlibrary
             }
         }
 
-        public List<List<string>> realizedTransToString(List<realizedTransaction> realizedTrans)
+        public List<List<KeyValuePair<string,string>>> realizedTransToKeyValStringString(List<realizedTransaction> realizedTrans)
         {
-            List<List<string>> ret = new List<List<string>>();
+            List<List<KeyValuePair<string,string>>> ret = new List<List<KeyValuePair<string,string>>>();
 
             string doubleFormat = "0.#####";
             string doubleFormatMoney = "0.####";
+            
+            if(!realizedTrans.First().initialEntryBuySplitTrans.First().trans.sellSymbol.Contains("usd"))
+            {
+                // sold first so buy to close realizes profit
+                Console.WriteLine("sdf");
+                foreach (realizedTransaction f in realizedTrans)
+                {
+                    double basis = 0;
+                    double amt = 0;
+                    double avgbuy = 0;
+                    double totalcost = 0;
+                    int count = 0;
+                    foreach (var t in f.initialEntryBuySplitTrans)
+                    {
+                        count++;
+                        basis += t.trans.sellAmount * t.portion;
+                        if(t.trans.sellSymbol.ToLower().Contains("usd"))
+                        {
+                            throw new Exception("bad");
+                        }
+                        amt += t.trans.buyAmount * t.portion;
+                    }
+                    avgbuy = basis / amt;
+
+                    List<KeyValuePair<string,string>> outline = new List<KeyValuePair<string,string>>();
+                    outline.Add(new KeyValuePair<string, string>("date", f.trans.dateTime.ToString()));
+                    //outline.Add(f.trans.sellSymbol + "amt:");
+                    outline.Add(new KeyValuePair<string, string>("sell amount","" + f.trans.sellAmount.ToString(doubleFormat)));
+                    outline.Add(new KeyValuePair<string, string>("exchange",f.trans.exchangeRec));
+                    outline.Add(new KeyValuePair<string, string>("gain","" + f.gain.ToString(doubleFormatMoney)));
+                    //outline.Add("$" + f.sellAmountReceivedUsuallyDollars.ToString());
+                    outline.Add(new KeyValuePair<string, string>("basis","$" + basis.ToString(doubleFormatMoney)));
+                    outline.Add(new KeyValuePair<string, string>("buy avgerage","avg" + avgbuy.ToString(doubleFormatMoney)));
+                    outline.Add(new KeyValuePair<string, string>("sell average","avs" + (f.trans.buyAmount/f.trans.sellAmount).ToString(doubleFormatMoney)));
+                    //outline.Add(count.ToString());
+                    //outline.Add(f.gain.ToString());
+                    //outline.Add(f.gain.ToString());
+
+                    ret.Add(outline);
+                }
+            
+            return ret;
+
+            }
+
             foreach (realizedTransaction f in realizedTrans)
             {
                 double basis = 0;
@@ -1366,16 +1412,16 @@ namespace gaintaxlibrary
                 }
                 avgbuy = basis / amt;
 
-                List<string> outline = new List<string>();
-                outline.Add(f.trans.dateTime.ToString());
+                List<KeyValuePair<string,string>> outline = new List<KeyValuePair<string, string>>();
+                outline.Add(new KeyValuePair<string, string>("date",f.trans.dateTime.ToString()));
                 //outline.Add(f.trans.sellSymbol + "amt:");
-                outline.Add("" + f.trans.sellAmount.ToString(doubleFormat));
-                //outline.Add(f.trans.exchangeRec);
-                outline.Add("" + f.gain.ToString(doubleFormatMoney));
+                outline.Add(new KeyValuePair<string, string>("sell amount","" + f.trans.sellAmount.ToString(doubleFormat)));
+                outline.Add(new KeyValuePair<string, string>("exchange",f.trans.exchangeRec));
+                outline.Add(new KeyValuePair<string, string>("gain","" + f.gain.ToString(doubleFormatMoney)));
                 //outline.Add("$" + f.sellAmountReceivedUsuallyDollars.ToString());
-                outline.Add("$" + basis.ToString(doubleFormatMoney));
-                outline.Add("avg" + avgbuy.ToString(doubleFormatMoney));
-                outline.Add("avs" + (f.trans.buyAmount/f.trans.sellAmount).ToString(doubleFormatMoney));
+                outline.Add(new KeyValuePair<string, string>("basis","$" + basis.ToString(doubleFormatMoney)));
+                outline.Add(new KeyValuePair<string, string>("buy average","avg" + avgbuy.ToString(doubleFormatMoney)));
+                outline.Add(new KeyValuePair<string, string>("sell average","avs" + (f.trans.buyAmount/f.trans.sellAmount).ToString(doubleFormatMoney)));
                 //outline.Add(count.ToString());
                 //outline.Add(f.gain.ToString());
                 //outline.Add(f.gain.ToString());
@@ -1453,24 +1499,69 @@ namespace gaintaxlibrary
             }
         }
 
+
+        public void printListListKeyValueStringString(List<List<KeyValuePair<string,string>>> data, string spacingString = " \t",  int stringLimit=12)
+        {
+            foreach (var d in data)
+            {
+                foreach(KeyValuePair<string,string> s in d)
+                {
+                    string h = s.Value;
+                    if(s.Value.Length > stringLimit)
+                    {
+                        h = s.Value.Substring(0, stringLimit);
+                    }
+                    Console.Write(h);
+                    string filler = "";
+                    for(int i=s.Value.Length; i<stringLimit; i++)
+                    {
+                        filler += " ";
+                    }
+                    Console.Write(filler);
+                    Console.Write(spacingString);
+                }
+                Console.Write("\n");
+            }
+        }
+
         public List<List<string>> summerizeBucketsToStringList(List<bucket> buckets)
         {
             List<List<string>> ret = new List<List<string>>();
+            if(buckets.Count() ==0)
+            {
+                return ret;
+            }
             string doubleFormat = "0.####";
 
             double totalAmount = 0;
             double totalPrice = 0;
-
             int count = 0;
+
+            int numberToCombine = 20;
+            foreach(var b in buckets)
+            {
+                count++;
+                if(buckets.Count < count + (5+numberToCombine) && buckets.Count >= count + 5 )
+                {
+                    totalAmount += b.amount;
+                    totalPrice += (b.price * b.amount);
+                }
+            }
+            List<string> bucketStrings = [
+                        "Buckets " + numberToCombine + " Avg: " + (totalPrice / totalAmount).ToString(doubleFormat),
+                        "Amt: " + (totalAmount).ToString(doubleFormat)];
+            ret.Add(bucketStrings);
+
+            count = 0;
             foreach(var b in buckets)
             {
                 count++;
                 totalAmount += b.amount;
                 totalPrice += (b.price * b.amount);
-                if(buckets.Count - 5 < count)
+                if(buckets.Count < count + 5)
                 {
-                    List<string> bucketStrings = [
-                        "Bucket Price: " + b.price, 
+                    bucketStrings = [
+                        "Bucket Price: " + b.price.ToString(doubleFormat), 
                         "Amt: " + b.amount.ToString(doubleFormat)];
                     ret.Add(bucketStrings);
                 }

@@ -686,7 +686,7 @@ namespace gaintaxtest{
             var h2 = realizedbtc2.Sum(x => x.gain);
             Assert.True(isClose(h, h2));
 
-            var t22 = t.realizedTransToString(realizedbtc2);
+            var t22 = t.realizedTransToKeyValStringString(realizedbtc2);
             Assert.True(isClose(h, h2));
         }
 
@@ -822,16 +822,17 @@ namespace gaintaxtest{
             var realizedbtc2 = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
 
             var realizedTrans38 = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
-            var t22 = t.realizedTransToString(realizedTrans38);
-            t.printListListString(t22, "\t", 7);
+            var t22 = t.realizedTransToKeyValStringString(realizedTrans38);
+            t.printListListKeyValueStringString(t22, "\t", 7);
 
             int date1 = 0;
             int sellamount = 1;
-            int gain = 2;
-            int buyavg = 4;
+            int gain = 3;
+            int buyavg = 5;
 
-            var MYDEBUG = t22.First(x => x[date1].Contains("3/3/2017"));
-            var f = isClose(float.Parse(MYDEBUG[sellamount]),10.0);
+            var firstRow = t22.First(x => x.First(y => y.Key.Contains("date")).Value.Contains("3/3/2017"));
+
+            var f = isClose(float.Parse(firstRow.First(y => y.Key.Contains("gain")).Value), 10.0);
 
             /*
             $2000 buy 0.1
@@ -842,10 +843,49 @@ namespace gaintaxtest{
             $2100 sell 0.12 means sell 0.05 *100 = $5   and 0.07 * 1600 = $112
             */
 
-            Assert.Equal(t22.First(x => x[date1].Contains("3/3/2017") && isClose(float.Parse(x[sellamount]), 0.15) && x[buyavg].Contains("avg3000"))[gain], "10");
-            Assert.Equal(t22.First(x => x[date1].Contains("3/3/2017") && isClose(float.Parse(x[sellamount]), 0.15) && x[buyavg].Contains("avg2000"))[gain], "55");
-            Assert.Equal(t22.First(x => x[date1].Contains("5/5/2017") && isClose(float.Parse(x[sellamount]), 0.12) && x[buyavg].Contains("avg2000"))[gain], "5");
-            Assert.Equal(t22.First(x => x[date1].Contains("5/5/2017") && isClose(float.Parse(x[sellamount]), 0.12) && x[buyavg].Contains("avg500"))[gain], "112");
+            var frr = findRow(t22, "3/3/2017", "avg3000", 0.15);
+            Assert.Equal("10", findRow(t22, "3/3/2017", "avg3000", 0.15).First(x => x.Key.Contains("gain")).Value);
+            Assert.Equal("55", findRow(t22, "3/3/2017", "avg2000", 0.15).First(x => x.Key.Contains("gain")).Value);
+            Assert.Equal("5", findRow(t22, "5/5/2017", "avg2000", 0.12).First(x => x.Key.Contains("gain")).Value);
+            Assert.Equal("112", findRow(t22, "5/5/2017", "avg500", 0.12).First(x => x.Key.Contains("gain")).Value);  
+        }
+
+        
+        public List<KeyValuePair<string,string>> findRow(List<List<KeyValuePair<string,string>>> source, string containsArg1, string containsArg2, double floatArg3)
+        {
+            foreach(List<KeyValuePair<string,string>> row in source)
+            {
+                bool match1 = false;
+                bool match2 = false;
+                bool matchFloat = false;
+
+                foreach(KeyValuePair<string, string> element in row)
+                {
+                    if(element.Value.ToLower().Contains(containsArg1))
+                    {
+                        match1 = true;
+                    }
+                    
+                    if(element.Value.ToLower().Contains(containsArg2))
+                    {
+                        match2 = true;
+                    }
+                    double g = float.MinValue;
+                    if(double.TryParse(element.Value, out g))
+                    {
+                        if(isClose(g, floatArg3))
+                        {
+                            matchFloat = true;
+                        }
+                    }
+                    if(match1 && matchFloat && match2)
+                    {
+                        return row;
+                    }
+                }
+
+            }
+            return new List<KeyValuePair<string, string>>();
         }
     }
 }

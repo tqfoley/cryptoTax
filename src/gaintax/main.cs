@@ -1,4 +1,5 @@
 ﻿using gaintaxlibrary;
+using System.Dynamic;
 using System.Xml.Serialization;
 
 public static class StringExtensions
@@ -99,7 +100,7 @@ public static T ReadFromXmlFile<T>(string filePath) where T : new()
             return source.ToLower().Contains(h.ToLower());
         }
 
-        private static List<transaction> readFile20ColumnCSV(string filename = "../../trans20Column.csv", DateTime? ignoreBeforeDate = null,
+        private static List<transaction> readFile20ColumnCSV(string filename = "../../../../../trans20Column.csv", DateTime? ignoreBeforeDate = null,
                                 int columnDateTime = 0,
                                 int columnBuyAmt = 3,
                                 int columnBuySym = 4,
@@ -253,6 +254,12 @@ public static T ReadFromXmlFile<T>(string filePath) where T : new()
                         {
                         }
                         else if (transType.stringMatchesIgnoreCase("staking_reward"))
+                        {
+                        }
+                        else if (transType.stringMatchesIgnoreCase("wrap"))
+                        {
+                        }
+                        else if (transType.stringMatchesIgnoreCase("multi_token_trade"))
                         {
                         }
                         else if (transType.stringMatchesIgnoreCase("Send")
@@ -562,7 +569,7 @@ public static T ReadFromXmlFile<T>(string filePath) where T : new()
             return ret;
         }
 
-        private static List<transaction> readSimpleFile10ColumnCSV( string filename = "../../transSimple10Column.csv", DateTime? ignoreBeforeDate = null,
+        private static List<transaction> readSimpleFile10ColumnCSV( string filename = "../../../../../transSimple10Column.csv", DateTime? ignoreBeforeDate = null,
                                 int columnDate = 0,
                                 int columnSymbol = 3,
                                 int columnAction = 4,
@@ -654,21 +661,132 @@ public static T ReadFromXmlFile<T>(string filePath) where T : new()
             return ret;
         }
 
+        private static List<transaction> readFileDrift( string filename = "../../../../../drifttrades.txt")//, DateTime? ignoreBeforeDate = null
+        {
+
+            List<transaction> ret = new List<transaction>();
+            string[] lines = File.ReadAllLines(filename);
+
+            //double realizedgain = 0;
+            int linenumber = 0;
+            int foundtransStep=0;
+            string currentSymbol = "";
+            bool currentbuy=false;
+            float currAmount=0;
+            float currCost = 0;
+            int day=9;
+            string previousline = "";
+
+            foreach (string line in lines)
+            {
+                if(line.Length > 0){
+                    if(line.Contains("/") && line.ToLower().Contains("usd"))
+                    {
+                        foundtransStep = 1;
+                        currentSymbol = line.Split("/").First();
+                    }
+                    if(line.ToLower().Contains("long"))
+                    {
+                        if(previousline.ToLower().Contains("perp")){
+                            currentSymbol = previousline;
+                            foundtransStep = 2;
+                        }
+                    }
+                    
+                    if(line.ToLower().Contains("short"))
+                    {
+                        if(previousline.ToLower().Contains("perp")){
+                            currentSymbol = previousline;
+                            foundtransStep = 2;
+                        }
+                    }
+                }
+                if(foundtransStep>0){
+                    if(foundtransStep == 1){
+                        foundtransStep = 2;
+                    }
+                    else if(foundtransStep==2){
+                        if(line.ToLower().Contains("buy") || line.ToLower().Contains("long")){
+                            currentbuy = true;
+                        }
+                        if(line.ToLower().Contains("sell") || line.ToLower().Contains("short")){
+                            currentbuy = false;
+                        }
+                        foundtransStep++;
+                    }
+                    else if(foundtransStep==3)
+                    {
+                        string[] a = line.Split(" ");
+                        currAmount = float.Parse(a[0]);
+                        foundtransStep++;
+                    }
+                    else if(foundtransStep == 4){
+
+                        string[] a = line.Split("$");
+                        currCost = float.Parse(a[1]);
+                        foundtransStep = 5;
+                    }
+
+                    else if(foundtransStep==5)
+                    {
+                        foundtransStep = 0;
+
+
+                        transaction t = new transaction();
+                        if(currentbuy)
+                        {
+                            t.buySymbol = currentSymbol;
+                            t.sellSymbol = "usd";
+                            t.exchangeRec = "drift";
+                            t.exchangeSent = "drift";
+                            t.buyAmount = currAmount;
+                            t.sellAmount = currCost;
+                        }
+                        if(!currentbuy)
+                        {
+                            t.buySymbol = "usd";
+                            t.sellSymbol = currentSymbol;
+                            t.exchangeRec = "drift";
+                            t.exchangeSent = "drift";
+                            t.buyAmount = currCost;
+                            t.sellAmount = currAmount;
+                        
+                        }
+                        t.dateTime = new DateTime(2024,12,3);
+                        t.feeSymbol = "";
+                        t.feeAmount = 0;
+                        t.combinedCount = 0;
+                        ret.Add(t);
+                    }
+                }
+                previousline = line;
+            }
+            return ret;
+        }
+
         static void Main(string[] args)
         {
             gaintaxlibrary.ClassGainTax.Go();
-            var trans = readFile20ColumnCSV("../../trans20Column.csv", new DateTime(2020, 1, 1));
-            var transSimple = readSimpleFile10ColumnCSV("../../transSimple10Column.csv", new DateTime(2020, 1, 1));
+            
+            var trans = readFile20ColumnCSV();
+
+            var drift = readFileDrift();
+            foreach(var ts in drift){
+                trans.Add(ts);
+            }
+
+
+            var transSimple = readSimpleFile10ColumnCSV();
             foreach(var ts in transSimple)
             {
                 trans.Add(ts);
             }
             
-            string initialBuyFileName = "./initialBuys.xml";
+            string initialBuyFileName = "./initialBuysStocks.xml";
             if(!File.Exists(initialBuyFileName))
             {
                 List<transaction> initialBTCBuys = [
-                 new transaction
+                new transaction
                 {
                     buyAmount = 1,
                     buySymbol = "btc",
@@ -696,16 +814,51 @@ public static T ReadFromXmlFile<T>(string filePath) where T : new()
 
             List<bucket> buckets = new List<bucket>();
 
-            gainTax.combineTransactionsInHourLongWindow_MODIFIES_transactions(gainTax.transactionsOriginal, 24, false, 0.5);
-            gainTax.useAlternativeDateForSellSinceAfterBuy_MODIFIES_transactions(gainTax.transactionsOriginal);
+            gainTax.combineTransactionsInHourLongWindow_MODIFIES_transactions(gainTax.transactionsOriginal, 1, false, 0.5);
 
-            List<string> symbolsICareAbout = ["btc"];
+            List<string> uniqueSymbols = new List<string>();
+            //List<string> uniqueSymbols1 = gainTax.transactionsOriginal.GroupBy(x => x.buySymbol).Select(x => x.First().buySymbol).ToList();
+            foreach(var symbols in gainTax.transactionsOriginal)
+            {
+                if(!uniqueSymbols.Exists(x => x == symbols.buySymbol))
+                {
+                    if(!symbols.buySymbol.Contains("deleted"))
+                    {
+                        uniqueSymbols.Add(symbols.buySymbol);
+                    }
+                }
+                if(!uniqueSymbols.Exists(x => x == symbols.sellSymbol))
+                {
+                    if(!symbols.sellSymbol.Contains("deleted"))
+                    {
+                        uniqueSymbols.Add(symbols.sellSymbol);
+                    }
+                }
+            }
+
+            List<string>  symbolsICareAbout;
+            symbolsICareAbout = new List<string>();
+            symbolsICareAbout.Add("btc");
+
+            symbolsICareAbout = symbolsICareAbout.OrderBy(x => x).ToList();
+            foreach(var f in symbolsICareAbout){
+                Console.WriteLine("x != \"" + f + "\" &&");
+            }
+
 
             foreach(var symbol in symbolsICareAbout)
             {
-                var realizedbtc = gainTax.computeGains(out buckets, true, symbol, "fiho", gainTax.transactionsOriginal);
-                gainTax.printListListString(gainTax.summerizeBucketsToStringList(buckets), "\t", 24);
-                gainTax.printListListString(gainTax.realizedTransToString(realizedbtc));
+                var realizedToken = gainTax.computeGains(out buckets, true, symbol, "fiho", gainTax.transactionsOriginal);
+
+                Console.WriteLine(symbol);
+                Console.WriteLine(symbol + " Count: " + realizedToken.Where(x => x.trans.dateTime.Value.Year.ToString().Contains("2024")).Count());
+                Console.WriteLine(symbol);
+                if(realizedToken.Where(x => x.trans.dateTime.Value.Year.ToString().Contains("2024")).Count() > 5)
+                {
+                    List<List<KeyValuePair<string,string>>> g = gainTax.realizedTransToKeyValStringString(realizedToken);
+                    gainTax.printListListString(gainTax.summerizeBucketsToStringList(buckets), "\t", 24);
+                    gainTax.printListListKeyValueStringString(g);
+                }
             }
 
             Console.WriteLine("End");
