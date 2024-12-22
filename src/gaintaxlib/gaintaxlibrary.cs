@@ -158,7 +158,6 @@ namespace gaintaxlibrary
 
         }
 
-        
         public void combineTwoTransactions(transaction a, transaction b, int timeSpanHours, List<transaction> transactionsCheck, double combineSensetivity)
         {
 
@@ -1474,7 +1473,6 @@ namespace gaintaxlibrary
             return ret;
         }
 
-        
         public void printListListString(List<List<string>> data, string spacingString = " \t",  int stringLimit=12)
         {
             foreach (var d in data)
@@ -1498,7 +1496,6 @@ namespace gaintaxlibrary
                 Console.Write("\n");
             }
         }
-
 
         public void printListListKeyValueStringString(List<List<KeyValuePair<string,string>>> data, string spacingString = " \t",  int stringLimit=12)
         {
@@ -1582,6 +1579,144 @@ namespace gaintaxlibrary
         {
             Console.WriteLine("Tax Calculator Library");
         }
+
+        
+        public List<KeyValuePair<string, double>> computeVolumeExchanges(List<transaction> transactions, bool includeOtherSymbol = true, bool onlyCurrentYear = true)
+        {
+            List<KeyValuePair<string, double>> ret = new List<KeyValuePair<string, double>>();
+
+            foreach(transaction t in transactions)
+            {
+                if(t.dateTime.Value.Year == DateTime.Now.Year)
+                {
+                    string currtKeyBuy = t.buySymbol + "_" + t.exchangeRec + "_b_" + t.dateTime.Value.Year;
+                    string currtKeySell = t.sellSymbol + "_" + t.exchangeSent + "_s_" + t.dateTime.Value.Year;
+
+                    if(includeOtherSymbol)
+                    {
+                        currtKeyBuy = t.buySymbol + "_" + t.exchangeRec + "_b_sell_" + t.sellSymbol + "_" + t.dateTime.Value.Year;
+                        currtKeySell = t.sellSymbol + "_" + t.exchangeSent + "_s_buy__" + t.buySymbol + "_" + t.dateTime.Value.Year;
+                    }
+
+                    KeyValuePair<string, double> curr = ret.FirstOrDefault(x => x.Key == currtKeyBuy);
+                    //if(curr == KeyValuePair.<string,double>.d)
+                    if(curr.Key == null)
+                    {
+                        ret.Add(new KeyValuePair<string, double>(currtKeyBuy, t.buyAmount));
+                    }
+                    else
+                    {
+                        var t2 = ret.First(x => x.Key == currtKeyBuy);
+                        KeyValuePair<string, double> toremove = new KeyValuePair<string, double>(t2.Key, t2.Value);
+                        ret.Remove(toremove);
+                        KeyValuePair<string, double> toreplacewith = new KeyValuePair<string, double>(t2.Key, t2.Value + t.buyAmount);
+                        ret.Add(toreplacewith);
+                    }
+
+                    KeyValuePair<string, double> curr2 = ret.FirstOrDefault(x => x.Key == currtKeySell);
+                    if(curr2.Key == null)
+                    {
+                        ret.Add(new KeyValuePair<string, double>(currtKeySell, t.sellAmount));
+                    }
+                    else
+                    {
+                        var t2 = ret.First(x => x.Key == currtKeySell);
+                        KeyValuePair<string, double> toremove = new KeyValuePair<string, double>(t2.Key, t2.Value);
+                        ret.Remove(toremove);
+                        KeyValuePair<string, double> toreplacewith = new KeyValuePair<string, double>(t2.Key, t2.Value + t.sellAmount);
+                        ret.Add(toreplacewith);
+
+                    }
+                }
+
+            }
+            ret = ret.OrderBy(kvp => kvp.Key).ToList();
+            return ret;
+
+        }
+
+
+
+        public List<string> lastNtrans( string symb, List<transaction> trans, bool ytd, int n=0)
+        {
+            List<string> ret = new List<string>();
+            double total = 0;
+            double volumeDollars = 0;
+            double lastTransYear = 0;
+            double avgBuyDollars = 0;
+            double avgSellDollars = 0;
+            double totalBuy = 0;
+            double totalSell = 0;
+
+            if(ytd)
+            {
+                lastTransYear = trans.FindLast(x=> true).dateTime.Value.Year;
+            }
+
+            if(n == 0)
+            {
+                n=99999999;
+            }
+
+            int curr=0;
+            int startIndex = trans.Count(x => 
+            (x.buySymbol.ToLower() == symb.ToLower() && x.sellSymbol.ToLower().Contains("usd")) ||
+            (x.sellSymbol.ToLower() == symb.ToLower() && x.buySymbol.ToLower().Contains("usd"))
+            ) - n;
+
+            foreach(transaction t in trans)
+            {
+                if(
+                    (t.buySymbol.ToLower() == symb.ToLower() && t.sellSymbol.ToLower().Contains("usd")) ||
+                    (t.sellSymbol.ToLower() == symb.ToLower() && t.buySymbol.ToLower().Contains("usd"))
+                ){
+                    curr++;
+                }
+                if(curr >= startIndex && (!ytd || (ytd && t.dateTime.Value.Year == lastTransYear)))
+                {
+                if(t.buySymbol.ToLower() == symb.ToLower() && t.sellSymbol.ToLower().Contains("usd"))
+                {
+                    //buying the asset with dollars
+                    string line = "";
+                    total += t.buyAmount;
+                    volumeDollars += t.sellAmount;
+                    line += t.sellAmount.ToString("######.00") + "       " + t.dateTime.Value.ToString("yy/MM/dd") + "   " + t.buyAmount.ToString("####.0000") + "   " +
+                    total.ToString("####.0000") + " $" + volumeDollars.ToString("####.00");
+                    ret.Add(line);
+
+                    avgBuyDollars = avgBuyDollars * totalBuy + t.buyAmount * t.sellAmount;
+                    totalBuy += t.buyAmount;
+                    
+
+                }
+                if(t.sellSymbol.ToLower() == symb.ToLower() && t.buySymbol.ToLower().Contains("usd"))
+                {
+                    //selling the asset getting dollars
+                    string line = "";
+                    total += t.sellAmount;
+                    volumeDollars += t.buyAmount;
+                    line += "      " + t.buyAmount.ToString("######.00") + "  " + t.dateTime.Value.ToString("yy/MM/dd") + "   " + t.sellAmount.ToString("####.0000") + "   " +
+                    total.ToString("####.0000") + " $" + volumeDollars.ToString("####.00");
+                    ret.Add(line);
+
+                    
+                    avgSellDollars = avgSellDollars * totalSell + t.buyAmount * t.sellAmount;
+                    totalSell += t.sellAmount;
+                    
+                }
+                }
+                
+            }
+            string summary = 
+            "buy  " + totalBuy.ToString("00000.000") + "    " + avgBuyDollars.ToString() + "    " +
+            "sell " + totalSell.ToString("00000.000") + "    " + avgSellDollars.ToString() + "    ";
+            
+            ret.Add(summary);
+
+            return ret;
+
+        }
+
 
     }
 

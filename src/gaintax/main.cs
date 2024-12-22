@@ -18,81 +18,53 @@ namespace main
 {
     static class GainTaxClass
     {
-
-/// <summary>
-/// Writes the given object instance to an XML file.
-/// <para>Only Public properties and variables will be written to the file. These can be any type though, even other classes.</para>
-/// <para>If there are public properties/variables that you do not want written to the file, decorate them with the [XmlIgnore] attribute.</para>
-/// <para>Object type must have a parameterless constructor.</para>
-/// </summary>
-/// <typeparam name="T">The type of object being written to the file.</typeparam>
-/// <param name="filePath">The file path to write the object instance to.</param>
-/// <param name="objectToWrite">The object instance to write to the file.</param>
-/// <param name="append">If false the file will be overwritten if it already exists. If true the contents will be appended to the file.</param>
-public static void WriteToXmlFile<T>(string filePath, T objectToWrite, bool append = false) where T : new()
-{
-    TextWriter writer = null;
-    try
-    {
-        var serializer = new XmlSerializer(typeof(T));
-        writer = new StreamWriter(filePath, append);
-        serializer.Serialize(writer, objectToWrite);
-    }
-    finally
-    {
-        if (writer != null)
-            writer.Close();
-    }
-}
-
-/// <summary>
-/// Reads an object instance from an XML file.
-/// <para>Object type must have a parameterless constructor.</para>
-/// </summary>
-/// <typeparam name="T">The type of object to read from the file.</typeparam>
-/// <param name="filePath">The file path to read the object instance from.</param>
-/// <returns>Returns a new instance of the object read from the XML file.</returns>
-public static T ReadFromXmlFile<T>(string filePath) where T : new()
-{
-    TextReader reader = null;
-    try
-    {
-        var serializer = new XmlSerializer(typeof(T));
-        reader = new StreamReader(filePath);
-        return (T)serializer.Deserialize(reader);
-    }
-    finally
-    {
-        if (reader != null)
-            reader.Close();
-    }
-}
-
-        private static void addMyTransactions(List<transaction> mytrans)
+        /// <summary>
+        /// Writes the given object instance to an XML file.
+        /// <para>Only Public properties and variables will be written to the file. These can be any type though, even other classes.</para>
+        /// <para>If there are public properties/variables that you do not want written to the file, decorate them with the [XmlIgnore] attribute.</para>
+        /// <para>Object type must have a parameterless constructor.</para>
+        /// </summary>
+        /// <typeparam name="T">The type of object being written to the file.</typeparam>
+        /// <param name="filePath">The file path to write the object instance to.</param>
+        /// <param name="objectToWrite">The object instance to write to the file.</param>
+        /// <param name="append">If false the file will be overwritten if it already exists. If true the contents will be appended to the file.</param>
+        public static void WriteToXmlFile<T>(string filePath, T objectToWrite, bool append = false) where T : new()
         {
-        mytrans.Add(new transaction
-        {
-                buyAmount = 1,
-                buySymbol = "btc",
-                sellAmount = 1000,
-                sellSymbol = "usd",
-                dateTime = new DateTime(2017, 1, 1),
-                exchangeRec = "",
-                exchangeSent = "",
-                combinedCount = 1
-        });
+            TextWriter writer = null;
+            try
+            {
+                var serializer = new XmlSerializer(typeof(T));
+                writer = new StreamWriter(filePath, append);
+                serializer.Serialize(writer, objectToWrite);
+            }
+            finally
+            {
+                if (writer != null)
+                    writer.Close();
+            }
+        }
 
-        mytrans.Add(new transaction
+        /// <summary>
+        /// Reads an object instance from an XML file.
+        /// <para>Object type must have a parameterless constructor.</para>
+        /// </summary>
+        /// <typeparam name="T">The type of object to read from the file.</typeparam>
+        /// <param name="filePath">The file path to read the object instance from.</param>
+        /// <returns>Returns a new instance of the object read from the XML file.</returns>
+        public static T ReadFromXmlFile<T>(string filePath) where T : new()
         {
-                buyAmount = 2000,
-                buySymbol = "usd",
-                sellAmount = 0.1,
-                sellSymbol = "btc",
-                dateTime = new DateTime(2024, 1, 1),
-                exchangeRec = "",
-                exchangeSent = "",
-                combinedCount = 1
-        });
+            TextReader reader = null;
+            try
+            {
+                var serializer = new XmlSerializer(typeof(T));
+                reader = new StreamReader(filePath);
+                return (T)serializer.Deserialize(reader);
+            }
+            finally
+            {
+                if (reader != null)
+                    reader.Close();
+            }
         }
 
         private static bool stringContainsIgnoreCase(this string source, string h)
@@ -661,20 +633,19 @@ public static T ReadFromXmlFile<T>(string filePath) where T : new()
             return ret;
         }
 
-        private static List<transaction> readFileDrift( string filename = "../../../../../drifttrades.txt")//, DateTime? ignoreBeforeDate = null
+        private static List<transaction> readFileLines( string filename = "../../../../../linetrades.txt")
         {
 
             List<transaction> ret = new List<transaction>();
             string[] lines = File.ReadAllLines(filename);
 
-            //double realizedgain = 0;
             int linenumber = 0;
             int foundtransStep=0;
             string currentSymbol = "";
             bool currentbuy=false;
             float currAmount=0;
             float currCost = 0;
-            int day=9;
+            
             string previousline = "";
 
             foreach (string line in lines)
@@ -764,17 +735,32 @@ public static T ReadFromXmlFile<T>(string filePath) where T : new()
             return ret;
         }
 
-        static void Main(string[] args)
+
+        static private void addUsdBuyTransaction(List<transaction> t, string symbol, DateTime d, double tokenBuyAmount, double dollars, string exchange="exchange")
+        {
+            t.Add(new transaction
+                {
+                    buyAmount = tokenBuyAmount,
+                    buySymbol = symbol,
+                    sellAmount = dollars,
+                    sellSymbol = "usd",
+                    dateTime = d,
+                    exchangeRec = exchange,
+                    exchangeSent = exchange,
+                    combinedCount = 1
+                });
+        }
+
+        static void Main3(string[] args)
         {
             gaintaxlibrary.ClassGainTax.Go();
             
             var trans = readFile20ColumnCSV();
 
-            var drift = readFileDrift();
-            foreach(var ts in drift){
+            var transFromLines = readFileLines();
+            foreach(var ts in transFromLines){
                 trans.Add(ts);
             }
-
 
             var transSimple = readSimpleFile10ColumnCSV();
             foreach(var ts in transSimple)
@@ -782,7 +768,7 @@ public static T ReadFromXmlFile<T>(string filePath) where T : new()
                 trans.Add(ts);
             }
             
-            string initialBuyFileName = "./initialBuysStocks.xml";
+            string initialBuyFileName = "../../../../../initialBuysDefault.xml";
             if(!File.Exists(initialBuyFileName))
             {
                 List<transaction> initialBTCBuys = [
