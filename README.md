@@ -10,5 +10,9 @@ C# project to figure out realized gains when buying and selling crypto
 - dotnet sln add test/gaintaxtest/gaintaxtest.csproj
 - dotnet add test/gaintaxtest/gaintaxtest.csproj reference src/gaintaxlib/gaintaxlib.csproj
 
-## To run unit tests run:
+## To run unit tests:
 - dotnet test
+
+## To run:
+- cryptoTax % dotnet run --project src/gaintax/gaintax.csproj
+- bin/net8.0 % dotnet run --project ../../../gaintax.csproj

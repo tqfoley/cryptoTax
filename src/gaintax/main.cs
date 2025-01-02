@@ -751,7 +751,7 @@ namespace main
                 });
         }
 
-        static void Main3(string[] args)
+        static void Main(string[] args)
         {
             gaintaxlibrary.ClassGainTax.Go();
             

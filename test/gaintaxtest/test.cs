@@ -857,18 +857,18 @@ namespace gaintaxtest{
             t.transactionsOriginal = new List<transaction>();
 
             historicDayPriceUSD hp = new historicDayPriceUSD();
-            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2023,1,1), 0.1, 200, "mtgox");
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year-1,1,1), 0.1, 200, "mtgox");
 
-            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2024,1,1), 0.1, 200, "mtgox");
-            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2024,2,1), 0.1, 200, "mtgox");
-            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2024,3,1), 0.1, 200, "mtgox");
-            addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2024,3,3), 0.5, 3000*0.5, "mtgox");
-            addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2024,5,5), 0.5, 2000*0.5, "mtgox");
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,1,1), 0.1, 200, "mtgox");
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,2,1), 0.1, 200, "mtgox");
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,3,1), 0.1, 200, "mtgox");
+            addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,3,3), 0.5, 3000*0.5, "mtgox");
+            addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,5,5), 0.5, 2000*0.5, "mtgox");
             
-            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2024,2,2), 0.1, 300,"coinbase");
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,2,2), 0.1, 300,"coinbase");
 
-            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2024,4,4), 0.1, 50, "kracken");
-            addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2024,5,5), 0.12, 2100*0.12, "kracken");
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,4,4), 0.1, 50, "kracken");
+            addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,5,5), 0.12, 2100*0.12, "kracken");
 
 
             List<KeyValuePair<string, double>> perExchangeAndYear = t.computeVolumeExchanges(t.transactionsOriginal);
@@ -879,15 +879,13 @@ namespace gaintaxtest{
                 Console.WriteLine(g.Key + "\t\t" + g.Value.ToString("000000.##") );
             }
 
-            Assert.True(isClose(perExchangeAndYear.First(x => x.Key.Contains("btc_coinbase_b_sell_usd_2024")).Value, 0.1));
+            Assert.True(isClose(perExchangeAndYear.First(x => x.Key.Contains("btc_coinbase_b_sell_usd_" + DateTime.Now.Year)).Value, 0.1));
 
+            Assert.True(isClose(perExchangeAndYear.First(x => x.Key.Contains("btc_mtgox_b_sell_usd_" + DateTime.Now.Year)).Value, 0.3));
+            Assert.True(isClose(perExchangeAndYear.First(x => x.Key.Contains("usd_mtgox_s_buy__btc_" + DateTime.Now.Year)).Value, 600));
 
-
-            Assert.True(isClose(perExchangeAndYear.First(x => x.Key.Contains("btc_mtgox_b_sell_usd_2024")).Value, 0.3));
-            Assert.True(isClose(perExchangeAndYear.First(x => x.Key.Contains("usd_mtgox_s_buy__btc_2024")).Value, 600));
-
-            Assert.True(isClose(perExchangeAndYear.First(x => x.Key.Contains("btc_mtgox_s_buy__usd_2024")).Value, 1.0));
-            Assert.True(isClose(perExchangeAndYear.First(x => x.Key.Contains("usd_mtgox_b_sell_btc_2024")).Value, 2500));
+            Assert.True(isClose(perExchangeAndYear.First(x => x.Key.Contains("btc_mtgox_s_buy__usd_" + DateTime.Now.Year)).Value, 1.0));
+            Assert.True(isClose(perExchangeAndYear.First(x => x.Key.Contains("usd_mtgox_b_sell_btc_" + DateTime.Now.Year)).Value, 2500));
 
             Assert.Equal(4, perExchangeAndYear.Count(x=> x.Key.Contains("mtgox")));
 
@@ -923,7 +921,9 @@ namespace gaintaxtest{
                 Console.WriteLine(l);
             }
 
-            Assert.True(g.Contains("200.00       17/01/01   .1000   .1000 $200.00"));
+            List<String> expectOneResult = g.Where(x => x.Contains("-200.0")).ToList().Where(x => x.Contains("17/01/01")).ToList().Where(x=> x.Contains(".1000")).ToList();
+
+            Assert.Equal(1, expectOneResult.Count());
         }
 
         [Fact]
@@ -936,6 +936,26 @@ namespace gaintaxtest{
             addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2024,1,1), 0.1, 200, "mtgox");
             addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2024,2,2), 0.1, 300,"coinbase");
 
+            List<KeyValuePair<string, double>> perExchangeAndYear = t.computeVolumeExchanges(t.transactionsOriginal, true, false);
+
+            foreach(KeyValuePair<string, double> g in perExchangeAndYear)
+            {
+            
+                Console.WriteLine(g.Key + "\t\t" + g.Value.ToString("000000.##") );
+            }
+            Assert.True(isClose(perExchangeAndYear.First(kvp => kvp.Key == "btc_coinbase_b_sell_usd_2024").Value, 0.10));
+        }
+
+        [Fact]
+        public void testVolumePerExchangeAndYearONLYCURRENTYEAR(){
+            
+            ClassGainTax t = new ClassGainTax();
+            t.transactionsOriginal = new List<transaction>();
+
+            historicDayPriceUSD hp = new historicDayPriceUSD();
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,1,1), 0.1, 200, "mtgox");
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,2,2), 0.1, 300,"coinbase");
+
             List<KeyValuePair<string, double>> perExchangeAndYear = t.computeVolumeExchanges(t.transactionsOriginal);
 
             foreach(KeyValuePair<string, double> g in perExchangeAndYear)
@@ -943,10 +963,9 @@ namespace gaintaxtest{
             
                 Console.WriteLine(g.Key + "\t\t" + g.Value.ToString("000000.##") );
             }
-            Assert.True(isClose(perExchangeAndYear.First(kvp => kvp.Key == "btc_coinbase_b_sell_usd_2024")
-            .Value, 0.10));
+            // btc_coinbase_b_sell_usd_YEAR
+            Assert.True(isClose(perExchangeAndYear.First(kvp => kvp.Key.Contains("btc_coinbase_b_sell_usd_")).Value, 0.10));
         }
-
         
         public List<KeyValuePair<string,string>> findRow(List<List<KeyValuePair<string,string>>> source, string containsArg1, string containsArg2, double floatArg3)
         {

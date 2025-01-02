@@ -1587,7 +1587,7 @@ namespace gaintaxlibrary
 
             foreach(transaction t in transactions)
             {
-                if(t.dateTime.Value.Year == DateTime.Now.Year)
+                if(t.dateTime.Value.Year == DateTime.Now.Year || onlyCurrentYear == false)
                 {
                     string currtKeyBuy = t.buySymbol + "_" + t.exchangeRec + "_b_" + t.dateTime.Value.Year;
                     string currtKeySell = t.sellSymbol + "_" + t.exchangeSent + "_s_" + t.dateTime.Value.Year;
@@ -1643,10 +1643,10 @@ namespace gaintaxlibrary
             double total = 0;
             double volumeDollars = 0;
             double lastTransYear = 0;
-            double avgBuyDollars = 0;
-            double avgSellDollars = 0;
-            double totalBuy = 0;
-            double totalSell = 0;
+            double totalAssetBuy = 0;
+            double totalAssetSell = 0;
+            double totalBuyInDollars = 0;
+            double totalSellInDollars = 0;
 
             if(ytd)
             {
@@ -1672,46 +1672,54 @@ namespace gaintaxlibrary
                 ){
                     curr++;
                 }
+
                 if(curr >= startIndex && (!ytd || (ytd && t.dateTime.Value.Year == lastTransYear)))
                 {
-                if(t.buySymbol.ToLower() == symb.ToLower() && t.sellSymbol.ToLower().Contains("usd"))
-                {
-                    //buying the asset with dollars
-                    string line = "";
-                    total += t.buyAmount;
-                    volumeDollars += t.sellAmount;
-                    line += t.sellAmount.ToString("######.00") + "       " + t.dateTime.Value.ToString("yy/MM/dd") + "   " + t.buyAmount.ToString("####.0000") + "   " +
-                    total.ToString("####.0000") + " $" + volumeDollars.ToString("####.00");
-                    ret.Add(line);
+                    if(t.buySymbol.ToLower() == symb.ToLower() && t.sellSymbol.ToLower().Contains("usd"))
+                    {
+                        //buying the asset with dollars
+                        string line = "";
+                        total += t.buyAmount;
+                        volumeDollars += t.sellAmount;
+                        line += "$-" + t.sellAmount.ToString("######.00") + "       " + t.dateTime.Value.ToString("yy/MM/dd") + "   " + t.buyAmount.ToString("####.0000") +
+                        "   @$" + (t.sellAmount / t.buyAmount).ToString("####.00") + "  " + symb + total.ToString("####.0000") + " vol$" + volumeDollars.ToString("####.00");
+                        ret.Add(line);
 
-                    avgBuyDollars = avgBuyDollars * totalBuy + t.buyAmount * t.sellAmount;
-                    totalBuy += t.buyAmount;
-                    
+                        totalAssetBuy += t.buyAmount;
+                        totalBuyInDollars += t.sellAmount; // selling dollars
+                    }
+                    if(t.sellSymbol.ToLower() == symb.ToLower() && t.buySymbol.ToLower().Contains("usd"))
+                    {
+                        //selling the asset getting dollars
+                        string line = "";
+                        total += t.sellAmount;
+                        volumeDollars += t.buyAmount;
+                        line += "     $+" + t.buyAmount.ToString("######.00") + "  " + t.dateTime.Value.ToString("yy/MM/dd") + "   " + t.sellAmount.ToString("####.0000") +
+                        "   @$" + (t.buyAmount / t.sellAmount).ToString("####.00") + "  " + symb + total.ToString("####.0000") + " vol$" + volumeDollars.ToString("####.00");
+                        ret.Add(line);
 
-                }
-                if(t.sellSymbol.ToLower() == symb.ToLower() && t.buySymbol.ToLower().Contains("usd"))
-                {
-                    //selling the asset getting dollars
-                    string line = "";
-                    total += t.sellAmount;
-                    volumeDollars += t.buyAmount;
-                    line += "      " + t.buyAmount.ToString("######.00") + "  " + t.dateTime.Value.ToString("yy/MM/dd") + "   " + t.sellAmount.ToString("####.0000") + "   " +
-                    total.ToString("####.0000") + " $" + volumeDollars.ToString("####.00");
-                    ret.Add(line);
-
-                    
-                    avgSellDollars = avgSellDollars * totalSell + t.buyAmount * t.sellAmount;
-                    totalSell += t.sellAmount;
-                    
-                }
+                        totalAssetSell += t.sellAmount;
+                        totalSellInDollars += t.buyAmount; // buying dollars
+                    }
                 }
                 
             }
+
+            double avgbuy = totalBuyInDollars/totalAssetBuy;
+            double avgsell = totalSellInDollars/totalAssetSell;
             string summary = 
-            "buy  " + totalBuy.ToString("00000.000") + "    " + avgBuyDollars.ToString() + "    " +
-            "sell " + totalSell.ToString("00000.000") + "    " + avgSellDollars.ToString() + "    ";
-            
+            "buy  " + totalAssetBuy.ToString("00000.000") +
+            "    " + (avgbuy).ToString() + "    " +
+            "sell " + totalAssetSell.ToString("00000.000") 
+            + "    " + (avgsell).ToString() + "    ";
             ret.Add(summary);
+
+            if(totalAssetBuy > totalAssetSell)
+            {
+                string summary2 = 
+                "profit:  $" + ((avgsell - avgbuy)*totalAssetSell).ToString("00000.000");
+                ret.Add(summary2);
+            }
 
             return ret;
 
