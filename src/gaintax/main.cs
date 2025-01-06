@@ -72,7 +72,7 @@ namespace main
             return source.ToLower().Contains(h.ToLower());
         }
 
-        private static List<transaction> readFile20ColumnCSV(string filename = "../../../../../trans20Column.csv", DateTime? ignoreBeforeDate = null,
+        private static List<Transaction> readFile20ColumnCSV(string filename = "../../../../../trans20Column.csv", DateTime? ignoreBeforeDate = null,
                                 int columnDateTime = 0,
                                 int columnBuyAmt = 3,
                                 int columnBuySym = 4,
@@ -105,7 +105,7 @@ namespace main
 
                                 
 
-            List<transaction> ret = new List<transaction>();
+            List<Transaction> ret = new List<Transaction>();
 
             string[] linesProblemsNewLines = File.ReadAllLines(filename);
             string currentString;
@@ -145,12 +145,12 @@ namespace main
 
                 if (col.Length < 18)
                 {
-                    int g = 0;
+                    Console.WriteLine("bad did not expect");
                 }
                 else if (col[0] == "")
                 {
                     //last line;
-                    int g = 0;
+                    Console.WriteLine("bad did not expect");
                 }
                 else if (linenumber == 1)
                 {
@@ -238,7 +238,7 @@ namespace main
                             || transType.stringMatchesIgnoreCase("Receive")
                             || transType.stringMatchesIgnoreCase("Transfer"))
                         {
-                            /*transfer t = new transfer();
+                            /*Transfer t = new Transfer();
                             t.dateTime = DateTime.Parse(col[0]);
                             if (transType.stringMatchesIgnoreCase("Send"))
                             {
@@ -337,9 +337,9 @@ namespace main
                                 //18 Realized Return (USD),
                                 //19 Fee Realized Return (USD)
 
-                                transaction t = new transaction();
+                                Transaction t = new Transaction();
                                 t.dateTime = DateTime.Parse(col[columnDateTime]);
-                                if (ignoreBeforeDate == null || t.dateTime.Value.Date >= ignoreBeforeDate.Value.Date)
+                                if (ignoreBeforeDate == null || t.dateTime.Date >= ignoreBeforeDate.Value.Date)
                                 {
                                     t.optionalSecondTansDate = null;
 
@@ -398,7 +398,7 @@ namespace main
                                         }
                                         else
                                         {
-                                            int h = 0;
+                                            Console.WriteLine("bad not expected");
                                         }
                                     }
 
@@ -414,11 +414,11 @@ namespace main
                                         }
                                         else
                                         {
-                                            int h = 0;
+                                            Console.WriteLine("bad did not expect");
                                         }
                                     }
 
-                                    if (t.buySymbol.Contains("weth") && t.dateTime.Value.Date.Day == 18)
+                                    if (t.buySymbol.Contains("weth") && t.dateTime.Date.Day == 18)
                                     {
                                         t.buySymbol = "weth";
                                     }
@@ -507,7 +507,7 @@ namespace main
                                         Console.WriteLine("bad");
                                     }
 
-                                    if (t.buySymbol.Contains("weth") && t.dateTime.Value.Date.Day == 18 && t.feeAmount > 1111)
+                                    if (t.buySymbol.Contains("weth") && t.dateTime.Date.Day == 18 && t.feeAmount > 1111)
                                     {
                                         t.buySymbol = "weth";
                                     }
@@ -515,12 +515,12 @@ namespace main
 
                                     if (t.buyAmount < 0.0000000001 || t.sellAmount < 0.0000000001)
                                     {
-                                        Console.WriteLine("BAD " + t.dateTime.Value + " " + t.sellSymbol + " " + t.buySymbol + " " + t.buyAmount);
+                                        Console.WriteLine("BAD " + t.dateTime + " " + t.sellSymbol + " " + t.buySymbol + " " + t.buyAmount);
                                     }
                                     else if (t.buyAmount / t.sellAmount > 1000111.0 || t.sellAmount / t.buyAmount > 1000111.0)
                                     {
                                         //pepe hits this
-                                        Console.WriteLine("BAD " + t.dateTime.Value + " " + t.sellSymbol + " " + t.buySymbol + " " + t.buyAmount);
+                                        Console.WriteLine("BAD " + t.dateTime + " " + t.sellSymbol + " " + t.buySymbol + " " + t.buyAmount);
                                     }
                                     else
                                     {
@@ -541,7 +541,7 @@ namespace main
             return ret;
         }
 
-        private static List<transaction> readSimpleFile10ColumnCSV( string filename = "../../../../../transSimple10Column.csv", DateTime? ignoreBeforeDate = null,
+        private static List<Transaction> readSimpleFile10ColumnCSV( string filename = "../../../../../transSimple10Column.csv", DateTime? ignoreBeforeDate = null,
                                 int columnDate = 0,
                                 int columnSymbol = 3,
                                 int columnAction = 4,
@@ -559,7 +559,7 @@ namespace main
             //fees,   8
             //details 9
 
-            List<transaction> ret = new List<transaction>();
+            List<Transaction> ret = new List<Transaction>();
             string[] lines = File.ReadAllLines(filename);
 
             //double realizedgain = 0;
@@ -571,7 +571,7 @@ namespace main
 
                 if (col.Length < 9 || linenumber < 2)
                 {
-                    int g = 0;
+                    Console.WriteLine("bad not expected");
                 }
                 else
                 {
@@ -582,7 +582,7 @@ namespace main
                         col[columnAction].Contains("BTO") || // buy to open
                         col[columnAction].Contains("BTC")) // buy to close
                     {
-                        transaction t = new transaction();
+                        Transaction t = new Transaction();
                         t.buySymbol = col[columnSymbol].ToLower();
                         t.sellSymbol = "usd";
                         t.exchangeRec = "robinhood";
@@ -607,7 +607,7 @@ namespace main
                         col[columnAction].Contains("STO") || // sell to open
                         col[columnAction].Contains("STC")) // sell to close
                     {
-                        transaction t = new transaction();
+                        Transaction t = new Transaction();
                         t.buySymbol = "usd";
                         t.sellSymbol = col[columnSymbol].ToLower();
                         t.exchangeRec = "robinhood";
@@ -633,13 +633,13 @@ namespace main
             return ret;
         }
 
-        private static List<transaction> readFileLines( string filename = "../../../../../linetrades.txt")
+        private static List<Transaction> readFileLines( string filename = "../../../../../linetrades.txt")
         {
 
-            List<transaction> ret = new List<transaction>();
+            List<Transaction> ret = new List<Transaction>();
             string[] lines = File.ReadAllLines(filename);
 
-            int linenumber = 0;
+            //int linenumber = 0;
             int foundtransStep=0;
             string currentSymbol = "";
             bool currentbuy=false;
@@ -703,7 +703,7 @@ namespace main
                         foundtransStep = 0;
 
 
-                        transaction t = new transaction();
+                        Transaction t = new Transaction();
                         if(currentbuy)
                         {
                             t.buySymbol = currentSymbol;
@@ -736,9 +736,9 @@ namespace main
         }
 
 
-        static private void addUsdBuyTransaction(List<transaction> t, string symbol, DateTime d, double tokenBuyAmount, double dollars, string exchange="exchange")
+        static private void addUsdBuyTransaction(List<Transaction> t, string symbol, DateTime d, double tokenBuyAmount, double dollars, string exchange="exchange")
         {
-            t.Add(new transaction
+            t.Add(new Transaction
                 {
                     buyAmount = tokenBuyAmount,
                     buySymbol = symbol,
@@ -771,8 +771,8 @@ namespace main
             string initialBuyFileName = "../../../../../initialBuysDefault.xml";
             if(!File.Exists(initialBuyFileName))
             {
-                List<transaction> initialBTCBuys = [
-                new transaction
+                List<Transaction> initialBTCBuys = [
+                new Transaction
                 {
                     buyAmount = 1,
                     buySymbol = "btc",
@@ -787,7 +787,7 @@ namespace main
                 WriteToXmlFile(initialBuyFileName, initialBTCBuys);
             }
 
-            var initialBTCBuysData = ReadFromXmlFile<List<transaction> >(initialBuyFileName);
+            var initialBTCBuysData = ReadFromXmlFile<List<Transaction> >(initialBuyFileName);
 
             foreach(var initialBuy in initialBTCBuysData)
             {
@@ -795,10 +795,10 @@ namespace main
             }
 
             ClassGainTax gainTax = new ClassGainTax();
-            gainTax.transactionsOriginal = trans;//new List<transaction>();
-            gainTax.transactionsOriginal= gainTax.transactionsOriginal.OrderBy(x => x.dateTime.Value).ToList();
+            gainTax.transactionsOriginal = trans;//new List<Transaction>();
+            gainTax.transactionsOriginal= gainTax.transactionsOriginal.OrderBy(x => x.dateTime).ToList();
 
-            List<bucket> buckets = new List<bucket>();
+            List<Bucket> buckets = new List<Bucket>();
 
             gainTax.combineTransactionsInHourLongWindow_MODIFIES_transactions(gainTax.transactionsOriginal, 1, false, 0.5);
 
@@ -831,17 +831,22 @@ namespace main
                 Console.WriteLine("x != \"" + f + "\" &&");
             }
 
-
-            foreach(var symbol in symbolsICareAbout)
+            foreach (var symbol in symbolsICareAbout)
             {
                 var realizedToken = gainTax.computeGains(out buckets, true, symbol, "fiho", gainTax.transactionsOriginal);
 
                 Console.WriteLine(symbol);
-                Console.WriteLine(symbol + " Count: " + realizedToken.Where(x => x.trans.dateTime.Value.Year.ToString().Contains("2024")).Count());
+
+                // Count the number of transactions where x.trans is not null and the year contains "2024"
+                var filteredTransactions = realizedToken.Where(x => x.trans != null && x.trans.dateTime.Year.ToString().Contains("2024"));
+                Console.WriteLine(symbol + " Count: " + filteredTransactions.Count());
+
                 Console.WriteLine(symbol);
-                if(realizedToken.Where(x => x.trans.dateTime.Value.Year.ToString().Contains("2024")).Count() > 5)
+
+                // If there are more than 5 transactions for the year 2024
+                if (filteredTransactions.Count() > 5)
                 {
-                    List<List<KeyValuePair<string,string>>> g = gainTax.realizedTransToKeyValStringString(realizedToken);
+                    List<List<KeyValuePair<string, string>>> g = gainTax.realizedTransToKeyValStringString(realizedToken);
                     gainTax.printListListString(gainTax.summerizeBucketsToStringList(buckets), "\t", 24);
                     gainTax.printListListKeyValueStringString(g);
                 }
