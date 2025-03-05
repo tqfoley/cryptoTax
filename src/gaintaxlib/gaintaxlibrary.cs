@@ -1637,8 +1637,9 @@ namespace gaintaxlibrary
 
 
 
-        public List<string> lastNtrans( string symb, List<transaction> trans, bool ytd, int n=0)
+        public List<string> lastNtrans( string symb, List<transaction> trans, bool ytd, bool pytd = false, int n=0)
         {
+            int testCount = trans.Count();
             List<string> ret = new List<string>();
             double total = 0;
             double volumeDollars = 0;
@@ -1648,9 +1649,18 @@ namespace gaintaxlibrary
             double totalBuyInDollars = 0;
             double totalSellInDollars = 0;
 
+            if(ytd && pytd){
+                throw new Exception("Error: Cant use year to date and previous year to date");
+            }
             if(ytd)
             {
                 lastTransYear = trans.FindLast(x=> true).dateTime.Value.Year;
+            }
+            
+            if(pytd)
+            {
+                lastTransYear = trans.FindLast(x=> true).dateTime.Value.Year;
+                lastTransYear-=1;
             }
 
             if(n == 0)
@@ -1664,7 +1674,11 @@ namespace gaintaxlibrary
             (x.sellSymbol.ToLower() == symb.ToLower() && x.buySymbol.ToLower().Contains("usd"))
             ) - n;
 
-            foreach(transaction t in trans)
+            List<transaction> reversed = trans.ToList();
+
+            reversed.Reverse();
+
+            foreach(transaction t in reversed)
             {
                 if(
                     (t.buySymbol.ToLower() == symb.ToLower() && t.sellSymbol.ToLower().Contains("usd")) ||
@@ -1713,13 +1727,16 @@ namespace gaintaxlibrary
             "sell " + totalAssetSell.ToString("00000.000") 
             + "    " + (avgsell).ToString() + "    ";
             ret.Add(summary);
+            ret.Insert(0, summary);
 
             if(totalAssetBuy > totalAssetSell)
             {
                 string summary2 = 
                 "profit:  $" + ((avgsell - avgbuy)*totalAssetSell).ToString("00000.000");
                 ret.Add(summary2);
+                ret.Insert(0, summary2);
             }
+
 
             return ret;
 
