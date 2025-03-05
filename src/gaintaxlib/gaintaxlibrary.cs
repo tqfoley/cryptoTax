@@ -1,32 +1,44 @@
 ﻿//using System.Reflection.Metadata.Ecma335;
+using System.Diagnostics;
 using System.Globalization;
 
 
 namespace gaintaxlibrary
 {
     
-    public class transaction
+    public class Transaction
     {
-        public DateTime? dateTime;
+        public DateTime dateTime;
         public int combinedCount = 0;
         public DateTime? optionalSecondTansDate;
 
-        public string? buySymbol;
-        public double buyAmount;
-        public string? exchangeRec;
 
-        public string? sellSymbol;
+        public string buySymbol;
+        public double buyAmount;
+        public string exchangeRec;
+
+        public string sellSymbol;
         public double sellAmount;
-        public string? exchangeSent;
+        public string exchangeSent;
 
         public string? feeSymbol;
         public double feeAmount;
         public string? altFeeSymbol;
         public double? altFeeAmount;
 
-        public transaction deepCopy()
+        // Constructor
+        public Transaction()
         {
-            transaction ret = new transaction();
+            this.buySymbol = "";
+            this.sellSymbol = "";
+            dateTime = new DateTime(2000,1,1);
+            this.exchangeRec = "";
+            this.exchangeSent = "";
+        }
+
+        public Transaction deepCopy()
+        {
+            Transaction ret = new Transaction();
             ret.dateTime = this.dateTime;
             ret.buySymbol = this.buySymbol;
             ret.sellSymbol = this.sellSymbol;
@@ -43,7 +55,7 @@ namespace gaintaxlibrary
         }
     }
 
-    public class transfer
+    public class Transfer
     {
         public DateTime? dateTime;
         public bool receive;
@@ -53,27 +65,37 @@ namespace gaintaxlibrary
         public string? fromAccount;
     }
 
-    public class bucket // buckets for selling, can reorder for FIFO, LIFO, MaxCost
+    public class Bucket // buckets for selling, can reorder for FIFO, LIFO, MaxCost
     {
         public string? symbol;
         public double amount;
         public double price;
-        public transaction? trans;
+        public Transaction? trans;
     }
 
     public class splitTransaction
     {
-        public transaction trans;
+        public Transaction trans;
         public double portion; // aka weight, when selling a buy might need to by split into multiple portions
+
+        public splitTransaction()
+        {
+            trans = new Transaction();
+        }
     }
 
     public class realizedTransaction
     {
         public double gain;
-        public transaction? trans;
+        public Transaction? trans;
         public double amount;
         public double sellAmountReceivedUsuallyDollars; // usually in dollars
-        public List<splitTransaction>? initialEntryBuySplitTrans;
+        public List<splitTransaction> initialEntryBuySplitTrans;
+
+        public realizedTransaction()
+        {
+            initialEntryBuySplitTrans = new List<splitTransaction>();
+        }
 
         public realizedTransaction deepCopy()
         {  
@@ -81,13 +103,24 @@ namespace gaintaxlibrary
             b.amount = this.amount;
             b.gain = this.gain;
             b.initialEntryBuySplitTrans = new List<splitTransaction>();
-            foreach(var t in this.initialEntryBuySplitTrans){
-                var r = new splitTransaction{portion = t.portion, trans = new transaction()};
-                r.trans = t.trans.deepCopy();
-                b.initialEntryBuySplitTrans.Add(r);
+            if (this != null)
+            {
+                if (this.initialEntryBuySplitTrans != null && this.trans != null)
+                {
+                    foreach (var t in this.initialEntryBuySplitTrans)
+                    {
+                        var r = new splitTransaction { portion = t.portion, trans = new Transaction() };
+                        r.trans = t.trans.deepCopy();
+                        b.initialEntryBuySplitTrans.Add(r);
+                    }
+                    b.sellAmountReceivedUsuallyDollars = this.sellAmountReceivedUsuallyDollars;
+                    b.trans = this.trans.deepCopy();
+                }
             }
-            b.sellAmountReceivedUsuallyDollars = this.sellAmountReceivedUsuallyDollars;
-            b.trans = this.trans.deepCopy();
+            else
+            {
+                throw new Exception("Null error, expected not null.");
+            }
             return b;
         }
     }
@@ -104,7 +137,7 @@ namespace gaintaxlibrary
 
     public class ClassGainTax
     {
-        public class total
+        public class Total
         {
             public string? buySymbol;
             public string? sellSymbol;
@@ -113,8 +146,8 @@ namespace gaintaxlibrary
 
         }
 
-        public List<transaction> transactionsOriginal = new List<transaction>();
-        public List<transfer> transfers1 = new List<transfer>();
+        public List<Transaction> transactionsOriginal = new List<Transaction>();
+        public List<Transfer> transfers1 = new List<Transfer>();
         public List<historicDayPriceUSD> historicPrices = new List<historicDayPriceUSD>();
 
         public bool isCloseToCombine(double a, double b, double combineSensetivity)
@@ -124,8 +157,12 @@ namespace gaintaxlibrary
             return false;
         }
 
-        public bool IsTransactionMarkedDeleted(transaction t)
+        public bool IsTransactionMarkedDeleted(Transaction t)
         {
+            if(t==null || t.buySymbol == null || t.sellSymbol == null)
+            {
+                throw new Exception("null error");
+            }
             if(t.buySymbol.Contains("deleted"))
             {
                 return true;
@@ -144,7 +181,7 @@ namespace gaintaxlibrary
             return false;
         }
         
-        public void MarkTransactionInsignificant(transaction t)
+        public void MarkTransactionInsignificant(Transaction t)
         {
             //    if(t.buyAmount > 0.000001)
             t.buyAmount = t.buyAmount / 1000000000;
@@ -158,20 +195,20 @@ namespace gaintaxlibrary
 
         }
 
-        public void combineTwoTransactions(transaction a, transaction b, int timeSpanHours, List<transaction> transactionsCheck, double combineSensetivity)
+        public void combineTwoTransactions(Transaction a, Transaction b, int timeSpanHours, List<Transaction> transactionsCheck, double combineSensetivity)
         {
 
-            double originalBuyAmount = 0;
-            double originalSellAmount = 0;
+            //double originalBuyAmount = 0;
+            //double originalSellAmount = 0;
 
 
             if (a.buySymbol == b.buySymbol &&
                 a.sellSymbol == b.sellSymbol &&
-                a.dateTime.Value.Add(new TimeSpan(timeSpanHours, 0, 0)) > b.dateTime &&
-                a.dateTime.Value.Subtract(new TimeSpan(timeSpanHours, 0, 0)) < b.dateTime &&
+                a.dateTime.Add(new TimeSpan(timeSpanHours, 0, 0)) > b.dateTime &&
+                a.dateTime.Subtract(new TimeSpan(timeSpanHours, 0, 0)) < b.dateTime &&
                 isCloseToCombine(a.sellAmount / a.buyAmount,
                     b.sellAmount / b.buyAmount, combineSensetivity) &&
-                a.dateTime.Value.Year == b.dateTime.Value.Year
+                a.dateTime.Year == b.dateTime.Year
                 )
             {
                 
@@ -183,6 +220,10 @@ namespace gaintaxlibrary
                 //a.exchangeRec = a.exchangeRec;
                 //a.exchangeSent = a.exchangeSent;
 
+                if(a.exchangeRec == null || a.exchangeSent == null)
+                {
+                    throw new Exception("null error");
+                }
                 if (!a.exchangeRec.Contains("comb"))
                 {
                     a.exchangeRec += a.exchangeRec + " comb ";
@@ -215,13 +256,13 @@ namespace gaintaxlibrary
 
                 if (a.optionalSecondTansDate is null)
                 {
-                    a.optionalSecondTansDate = b.dateTime.Value;
+                    a.optionalSecondTansDate = b.dateTime;
                 }
                 else
                 {
-                    if (a.optionalSecondTansDate.Value < b.dateTime.Value)
+                    if (a.optionalSecondTansDate.Value < b.dateTime)
                     {
-                        a.optionalSecondTansDate = b.dateTime.Value;
+                        a.optionalSecondTansDate = b.dateTime;
                     }
                 }
 
@@ -234,8 +275,11 @@ namespace gaintaxlibrary
             }
             else
             {
-                if (
-                a.dateTime.Value.Year != b.dateTime.Value.Year)
+                /*if(a.dateTime == null || b.dateTime == null)
+                {
+                    throw new Exception("null error");
+                }*/
+                if (a.dateTime.Year != b.dateTime.Year)
                 {
                     throw new Exception("bad date");
 
@@ -244,7 +288,7 @@ namespace gaintaxlibrary
             }
         }
 
-        public void useAlternativeDateForSellSinceAfterBuy_MODIFIES_transactions(List<transaction> transactions)
+        public void useAlternativeDateForSellSinceAfterBuy_MODIFIES_transactions(List<Transaction> transactions)
         {
             foreach(var t in transactions)
             {
@@ -257,13 +301,13 @@ namespace gaintaxlibrary
                     Console.WriteLine("sells should be after buys but still in the same year");
                     if(t.dateTime < t.optionalSecondTansDate)
                     {
-                        if(t.dateTime.Value.Year == t.optionalSecondTansDate.Value.Year)
+                        if(t.dateTime.Year == t.optionalSecondTansDate.Value.Year)
                         {
                             t.dateTime = t.optionalSecondTansDate.Value;
                             t.optionalSecondTansDate = saveDateTime;
                         }
                         else{
-                            t.dateTime = new DateTime(t.dateTime.Value.Year, 12,31).AddSeconds(-5); // 5 seconds before midnight
+                            t.dateTime = new DateTime(t.dateTime.Year, 12,31).AddSeconds(-5); // 5 seconds before midnight
                             t.optionalSecondTansDate = saveDateTime;
                         }
                     }
@@ -272,7 +316,7 @@ namespace gaintaxlibrary
             }
         }
 
-        public int combineTransactionsInHourLongWindow_MODIFIES_transactions(List<transaction> transactions, int timeSpanHours, bool limitOnlyUSDTransactions = true, double combineSensitivityPercentDiffOver100 = 0.05)
+        public int combineTransactionsInHourLongWindow_MODIFIES_transactions(List<Transaction> transactions, int timeSpanHours, bool limitOnlyUSDTransactions = true, double combineSensitivityPercentDiffOver100 = 0.05)
         {
             if (timeSpanHours == 22)
             {
@@ -287,7 +331,7 @@ namespace gaintaxlibrary
                 //{
                 //    i = transactions.Count - 5;
                 //}
-                transaction first = transactions.ElementAt(i);
+                Transaction first = transactions.ElementAt(i);
 
                 //if (first.sellSymbol.Contains("bnb") && first.transDate.ToString().Contains("5/6/2024") && 
                 //    first.transDate.ToString().Contains("8:15")
@@ -295,6 +339,10 @@ namespace gaintaxlibrary
                 //{//5 / 6 / 2024 8:15:55 AM btc bnb 0.00051778 0.056 ratio 0.009246071428571428)
                 //first.sellSymbol = "bnb";
                 //}
+                if(first.buySymbol == null || first.sellSymbol == null)
+                {
+                    throw new Exception("null error");
+                }
                 if (!limitOnlyUSDTransactions
                     || (limitOnlyUSDTransactions == true
                        && (!first.sellSymbol.ToLower().Contains("delete"))
@@ -306,7 +354,7 @@ namespace gaintaxlibrary
 
                     for (int j = i + 1; j < i + 5329 && j < transactions.Count; j++)
                     {
-                        if (first.dateTime.Value.Year == 2024)
+                        if (first.dateTime.Year == 2024)
                         {
                             //Console.WriteLine("sdf");
                         }
@@ -315,12 +363,12 @@ namespace gaintaxlibrary
                             
                         if (first.buySymbol == transactions.ElementAt(j).buySymbol &&
                            first.sellSymbol.ToLower() == transactions.ElementAt(j).sellSymbol.ToLower() &&
-                           first.dateTime.Value.Add(new TimeSpan(timeSpanHours, 0, 0)) > transactions.ElementAt(j).dateTime &&
-                           first.dateTime.Value.Subtract(new TimeSpan(timeSpanHours, 0, 0)) < transactions.ElementAt(j).dateTime &&
+                           first.dateTime.Add(new TimeSpan(timeSpanHours, 0, 0)) > transactions.ElementAt(j).dateTime &&
+                           first.dateTime.Subtract(new TimeSpan(timeSpanHours, 0, 0)) < transactions.ElementAt(j).dateTime &&
                            first.buyAmount > 0.00000007 &&
                            //first.exchangeRec == transactions.ElementAt(j).exchangeRec &&
                            //first.exchangeSent == transactions.ElementAt(j).exchangeSent &&
-                           first.dateTime.Value.Year == transactions.ElementAt(j).dateTime.Value.Year 
+                           first.dateTime.Year == transactions.ElementAt(j).dateTime.Year 
                            
                            )
                         {
@@ -455,8 +503,8 @@ namespace gaintaxlibrary
             }
             Console.WriteLine("combined " + combined);
 
-            List<transaction> ignoreInsignificantTrans = new List<transaction>();
-            foreach (transaction f in transactions)
+            List<Transaction> ignoreInsignificantTrans = new List<Transaction>();
+            foreach (Transaction f in transactions)
             {
                 if (f.buySymbol.Contains("deleted") || f.sellSymbol.Contains("deleted"))
                 { }
@@ -472,7 +520,7 @@ namespace gaintaxlibrary
 
         }
 
-        public void deleteSingleLastZeroAmountInList(List<bucket> t)
+        public void deleteSingleLastZeroAmountInList(List<Bucket> t)
         {
             int lastindex = t.Count - 1;
             if (t.ElementAt(lastindex).amount > 0.001)
@@ -491,10 +539,10 @@ namespace gaintaxlibrary
 
         }
 
-        public List<realizedTransaction> computeGains(out List<bucket> buckets, bool combineRealizedTransactionOnSameDay, string symbol, string mode, List<transaction> transactions, DateTime? endDate = null, bool printIndividualTrans = false)
+        public List<realizedTransaction> computeGains(out List<Bucket> buckets, bool combineRealizedTransactionOnSameDay, string symbol, string mode, List<Transaction> transactions, DateTime? endDate = null, bool printIndividualTrans = false)
         {
             Console.WriteLine("gains for " + symbol);
-            transactions = transactions.OrderBy(x => x.dateTime.Value).ToList();
+            transactions = transactions.OrderBy(x => x.dateTime).ToList();
             
             List<realizedTransaction> realizedTransactions = new List<realizedTransaction>();
             
@@ -503,7 +551,7 @@ namespace gaintaxlibrary
                 Console.WriteLine("END DATE Dec 31 2024!");
                 endDate = new DateTime(2024, 12, 31);
             }
-            buckets = new List<bucket>();
+            buckets = new List<Bucket>();
             
             List<KeyValuePair<string, string>> ValidPairSymbols = new List<KeyValuePair<string, string>> {
                 new KeyValuePair<string, string>(symbol, "usd")
@@ -514,14 +562,18 @@ namespace gaintaxlibrary
 
             int countTrans = 0;
             bool Inverted = false; // used for selling first
-            bool firstTransaction = false;  // set inverted based on first transaction
+            bool firstTransaction = false;  // set inverted based on first Transaction
 
             var filteredTrans = transactions.Where(x => x.buySymbol.Contains(symbol) || x.sellSymbol.Contains(symbol));
             double sellAmount = transactions.Where(x => x.sellSymbol.Contains(symbol)).Sum(x => x.sellAmount);
             double buyAmount = transactions.Where(x => x.buySymbol.Contains(symbol)).Sum(x => x.buyAmount);
 
-            foreach (transaction currentTransaction in filteredTrans)
+            foreach (Transaction currentTransaction in filteredTrans)
             {
+                if(currentTransaction.buySymbol == null || currentTransaction.sellSymbol == null)
+                {
+                    throw new Exception("null error");
+                }
                 if (!firstTransaction && currentTransaction.buySymbol.Contains(symbol))
                 {
                     firstTransaction = true;
@@ -539,21 +591,21 @@ namespace gaintaxlibrary
                 {
                     countTrans = 135;
                 }*/
-                DateOnly currentDate = new DateOnly(currentTransaction.dateTime.Value.Date.Year,
-                    currentTransaction.dateTime.Value.Date.Month,
-                    currentTransaction.dateTime.Value.Date.Day);
+                DateOnly currentDate = new DateOnly(currentTransaction.dateTime.Date.Year,
+                    currentTransaction.dateTime.Date.Month,
+                    currentTransaction.dateTime.Date.Day);
 
                 if (currentDate < prevDate)
                 {
                     Console.WriteLine("Exception transactions not ordered properly");
                     throw new Exception("bad");
                 }
-                prevDate = new DateOnly(currentTransaction.dateTime.Value.Date.Year,
-                    currentTransaction.dateTime.Value.Date.Month,
-                    currentTransaction.dateTime.Value.Date.Day);
+                prevDate = new DateOnly(currentTransaction.dateTime.Date.Year,
+                    currentTransaction.dateTime.Date.Month,
+                    currentTransaction.dateTime.Date.Day);
 
-                transaction? prevTrans = null;
-                if (currentTransaction.dateTime.Value < endDate.Value)
+                Transaction? prevTrans = null;
+                if (currentTransaction.dateTime < endDate.Value)
                 {
                     // ensure  tranactions in chronological order todo
                     if(prevTrans != null && prevTrans.dateTime > currentTransaction.dateTime)
@@ -588,7 +640,7 @@ namespace gaintaxlibrary
                         {
                             if (currentTransaction.buyAmount > 0.00001 && !IsTransactionMarkedDeleted(currentTransaction))
                             {
-                                buckets.Add(new bucket
+                                buckets.Add(new Bucket
                                 {
                                     amount = currentTransaction.buyAmount,
                                     symbol = currentTransaction.sellSymbol,
@@ -601,7 +653,7 @@ namespace gaintaxlibrary
                         {
                             if (currentTransaction.sellAmount > 0.00001 && !IsTransactionMarkedDeleted(currentTransaction))
                             {
-                                buckets.Add(new bucket
+                                buckets.Add(new Bucket
                                 {
                                     amount = currentTransaction.sellAmount,
                                     symbol = currentTransaction.buySymbol,
@@ -613,9 +665,7 @@ namespace gaintaxlibrary
 
                         if (buckets.Last().amount < 0.00001)
                         {
-                            int t = 0;
-
-                            throw new Exception("unexpected last bucket");
+                            throw new Exception("unexpected last Bucket");
                         }
 
                         if (!Inverted || Inverted)
@@ -632,8 +682,9 @@ namespace gaintaxlibrary
                             }
                             if (mode == "filo") // first in last out
                             {
-                                //rearrange List last transaction At Back
-                                buckets = buckets.OrderBy(x => x.trans.dateTime.Value).ToList();
+                                //rearrange List last Transaction At Back
+
+                                buckets = buckets.OrderBy(x => x.trans?.dateTime).ToList();
                             }
                         }
                     }
@@ -663,7 +714,7 @@ namespace gaintaxlibrary
                     else
                     {
                         //need to loop untill all the sell amount is matched with enough buckets to value amount of sell
-                        transaction copyCurrentTransaction = currentTransaction.deepCopy();
+                        Transaction copyCurrentTransaction = currentTransaction.deepCopy();
                         bool keepGoing = true;
                         while (keepGoing)//need to loop untill all the sell amount is matched with enough buckets to value amount of sell
                         {
@@ -672,7 +723,7 @@ namespace gaintaxlibrary
                                 if (buckets.Last().amount > copyCurrentTransaction.sellAmount)
                                 {
                                     double realizedGain = (copyCurrentTransaction.buyAmount / copyCurrentTransaction.sellAmount - buckets.Last().price) * copyCurrentTransaction.sellAmount;
-                                    //transaction t = currentTransaction;
+                                    //Transaction t = currentTransaction;
                                     //double a = copyCurrentTransaction.sellAmount;
                                     //double g = realizedGain;
                                     lastExchangePrice = copyCurrentTransaction.buyAmount / copyCurrentTransaction.sellAmount;
@@ -687,16 +738,31 @@ namespace gaintaxlibrary
                                     };
                                     splitTransaction splittrans = new splitTransaction();
                                     splittrans.portion = copyCurrentTransaction.sellAmount / buckets.Last().amount; // portion or weight
-                                    splittrans.trans = buckets.Last().trans;
+                                                                                                                    // Get the last bucket safely
+                                    var lastBucket = buckets?.LastOrDefault();
+
+                                    if (lastBucket == null || lastBucket.trans == null)
+                                    {
+                                        throw new Exception("bad null: Either the list is empty or trans is null in the last bucket");
+                                    }
+                                    else
+                                    {
+                                        splittrans.trans = lastBucket.trans;
+                                    }
+
                                     newRealizedGain.initialEntryBuySplitTrans.Add(splittrans);
                                     realizedTransactions.Add(newRealizedGain);
 
-                                    buckets.Last().amount -= copyCurrentTransaction.sellAmount;
-                                    if (buckets.Last().amount < 0.000001)
+                                    lastBucket.amount -= copyCurrentTransaction.sellAmount;
+                                    if (lastBucket.amount < 0.000001)
                                     {
-                                        if (buckets.Last().amount < -0.0001)
+                                        if (lastBucket.amount < -0.0001)
                                         {
                                             throw new Exception("Bad selling more than exists");
+                                        }
+                                        if(buckets == null)
+                                        {
+                                            throw new Exception("bad");
                                         }
                                         deleteSingleLastZeroAmountInList(buckets);
                                     }
@@ -722,7 +788,19 @@ namespace gaintaxlibrary
 
                                     splitTransaction splittrans = new splitTransaction();
                                     splittrans.portion = 1.0; // portion or weight
-                                    splittrans.trans = buckets.Last().trans;
+
+                                    var lastBucket = buckets.LastOrDefault();
+                                    if (lastBucket == null || lastBucket.trans == null)
+                                    {
+                                        splittrans.trans = new Transaction(); // or assign a default value for trans if necessary
+                                        throw new Exception("bad should not use new Transaction");
+                                    }
+                                    else
+                                    {
+                                        splittrans.trans = lastBucket.trans;
+                                    }
+
+
 
                                     temp.initialEntryBuySplitTrans.Add(splittrans);
                                     realizedTransactions.Add(temp);
@@ -769,10 +847,12 @@ namespace gaintaxlibrary
                                     };
                                     splitTransaction splittrans = new splitTransaction();
                                     splittrans.portion = copyCurrentTransaction.buyAmount / buckets.Last().amount; // portion or weight
-                                    splittrans.trans = buckets.Last().trans;
+                                    
+                                    //splittrans.trans = buckets.Last().trans;
+                                    splittrans.trans = buckets.Last()?.trans ?? new Transaction(); // Replace 'new Trans()' with your default value
+
                                     temp.initialEntryBuySplitTrans.Add(splittrans);
                                     realizedTransactions.Add(temp);
-
 
                                     buckets.Last().amount -= copyCurrentTransaction.buyAmount;
                                     if (buckets.Last().amount < 0.000001)
@@ -806,7 +886,21 @@ namespace gaintaxlibrary
 
                                     splitTransaction splittrans = new splitTransaction();
                                     splittrans.portion = 1.0; // portion or weight
-                                    splittrans.trans = buckets.Last().trans;
+
+                                    var lastBucket = buckets.LastOrDefault(); // Get the last element, or null if the list is empty
+
+                                    if (lastBucket == null || lastBucket.trans == null)
+                                    {
+                                        // Handle the case where trans is null (e.g., assign a default value or throw an exception)
+                                        splittrans.trans = new Transaction();
+                                        throw new Exception("bad");
+                                    }
+                                    else
+                                    {
+                                        splittrans.trans = lastBucket.trans;
+                                    }
+
+
 
                                     temp.initialEntryBuySplitTrans.Add(splittrans);
                                     realizedTransactions.Add(temp);
@@ -864,7 +958,7 @@ namespace gaintaxlibrary
                             totalAllYears += rt.gain;
                             totalAllYearsVolume += rt.sellAmountReceivedUsuallyDollars;
                         }
-                        if (printIndividualTrans && rt.trans.dateTime.Value.Year >= 2016)
+                        if (printIndividualTrans && rt.trans.dateTime.Year >= 2016)
                         {
                             Console.WriteLine(rt.trans.sellSymbol.ToString() + " " + rt.trans.dateTime.ToString() + " " + rt.amount.ToString(doubleFormat) + " price " + rt.gain.ToString(doubleFormat));
                         }
@@ -874,14 +968,14 @@ namespace gaintaxlibrary
                 {
                     Console.WriteLine("TOTAL GAIN " + currentTaxYear + "\t" + symbol + "\tprofit:" + (totalGain3 / 1000).ToString("0.###") + "K\tSell Volume:" + (totalVolume / 1000).ToString("0.###") + "K");
                 }
-                string doubleFormat2 = "0.####";
+                //string doubleFormat2 = "0.####";
                 //if (symbol.Contains("eth"))
                 {
-                    foreach (bucket bucket in buckets)
+                    foreach (Bucket bucket in buckets)
                     {
                         if (bucket.amount > 89999990.05)
                         {
-                            //Console.WriteLine(bucket.amount.ToString(doubleFormat) + " bucket " + bucket.price.ToString(doubleFormat));
+                            //Console.WriteLine(Bucket.amount.ToString(doubleFormat) + " Bucket " + Bucket.price.ToString(doubleFormat));
                         }
                     }
                 }
@@ -922,7 +1016,7 @@ namespace gaintaxlibrary
                 DateOnly currentDate = new DateOnly(1970,1,1);
                 foreach (var g in realizedTransactions)
                 {
-                    DateOnly thisDate = new DateOnly(g.trans.dateTime.Value.Year, g.trans.dateTime.Value.Month, g.trans.dateTime.Value.Day);
+                    DateOnly thisDate = new DateOnly(g.trans.dateTime.Year, g.trans.dateTime.Month, g.trans.dateTime.Day);
                     
                     if (thisDate != currentDate)
                     {
@@ -944,7 +1038,7 @@ namespace gaintaxlibrary
                         currentCombineTrans.amount += g.amount;
                         currentCombineTrans.sellAmountReceivedUsuallyDollars += g.sellAmountReceivedUsuallyDollars;
                         
-                        if(currentCombineTrans.trans.sellSymbol != g.trans.sellSymbol)
+                        if(currentCombineTrans.trans?.sellSymbol != g.trans.sellSymbol)
                             throw new Exception("different sell symbol");
                         if(currentCombineTrans.trans.sellSymbol != g.trans.sellSymbol)
                             throw new Exception("different sell symbol");
@@ -967,6 +1061,10 @@ namespace gaintaxlibrary
                 }
                 if (currentDate !=  new DateOnly())
                 {
+                    if(currentCombineTrans == null)
+                    {
+                        throw new Exception("bad");
+                    }    
                     combineRealizedTrans.Add(currentCombineTrans);
                 }
                 return combineRealizedTrans;
@@ -1028,9 +1126,11 @@ namespace gaintaxlibrary
             {
                 if (count++ == 5000)
                 {
-                    //Console.WriteLine("fsf");
-                    int y = 0;
-
+                    Console.WriteLine("bad");
+                }
+                if(realized.trans == null)
+                {
+                    throw new Exception("bad");
                 }
                 if (realized.trans.dateTime.ToString().Contains(year.ToString()))
                 {
@@ -1111,7 +1211,7 @@ namespace gaintaxlibrary
                         )
                     {
                         string longterm = "";
-                        TimeSpan diff = realized.trans.dateTime.Value.Subtract(realized.initialEntryBuySplitTrans.First().trans.dateTime.Value);
+                        TimeSpan diff = realized.trans.dateTime.Subtract(realized.initialEntryBuySplitTrans.First().trans.dateTime);
                         var days = diff.TotalDays;
                         if (days > 365)
                         {
@@ -1120,10 +1220,10 @@ namespace gaintaxlibrary
                         double avgsell = realized.trans.buyAmount / realized.trans.sellAmount;
                         double avgbuy = realized.initialEntryBuySplitTrans.First().trans.sellAmount / realized.initialEntryBuySplitTrans.First().trans.buyAmount;
                         Console.WriteLine(sellExchangeAbriviation + "\t" + realized.gain.ToString(doubleFormatdollar) + "  \t   basis " + realized.trans.sellSymbol + ":" + realized.amount.ToString(doubleFormat) + "\t" +
-                            realized.trans.dateTime.Value.ToString("yyyy-MM-dd") + "\t" + realized.initialEntryBuySplitTrans.First().trans.dateTime.Value.ToString("yyyy-MM-dd") + " " +
+                            realized.trans.dateTime.ToString("yyyy-MM-dd") + "\t" + realized.initialEntryBuySplitTrans.First().trans.dateTime.ToString("yyyy-MM-dd") + " " +
                             //" buy:" + realized.trans.buySymbol + 
                             "\tcost basis:" + (avgsell * realized.amount).ToString(doubleFormatdollar) + " " + (avgbuy * realized.amount).ToString(doubleFormatdollar) + " " +
-                            //" total sell:" + realized.trans.sellAmount.ToString(doubleFormat) + " avg:" + avgsell.ToString(doubleFormat) +
+                            //" Total sell:" + realized.trans.sellAmount.ToString(doubleFormat) + " avg:" + avgsell.ToString(doubleFormat) +
                             // " buy:" + realized.initialEntryBuyTrans.First().buyAmount.ToString(doubleFormat) + " avg:" + avgbuy.ToString(doubleFormat) +
                             longterm
                             //+ "comb" + realized.initialEntryBuyTrans.First().combinedCount + " " + realized.trans.combinedCount
@@ -1215,24 +1315,24 @@ namespace gaintaxlibrary
             //Console.WriteLine("totalReceivedUSD_CB:" + totalCostBasisUSD_Coinbase.ToString(doubleFormat));
             //Console.WriteLine("totalReceivedUSD_KK:" + totalCostBasisUSD_Kraken.ToString(doubleFormat));
 
-            Console.WriteLine("realizedBU gain loss total:" + totalRealizedGainBinance.ToString(doubleFormat) + " " + totalRealizedLossBinance.ToString(doubleFormat) + " " + (totalRealizedGainBinance + totalRealizedLossBinance).ToString(doubleFormat));
-            Console.WriteLine("realizedCB gain loss total:" + totalRealizedGainCoinbase.ToString(doubleFormat) + " " + totalRealizedLossCoinbase.ToString(doubleFormat) + " " + (totalRealizedGainCoinbase + totalRealizedLossCoinbase).ToString(doubleFormat));
-            Console.WriteLine("realizedKR gain loss total:" + totalRealizedGainKraken.ToString(doubleFormat) + " " + totalRealizedLossKraken.ToString(doubleFormat) + " " + (totalRealizedGainKraken + totalRealizedLossKraken).ToString(doubleFormat));
+            Console.WriteLine("realizedBU gain loss Total:" + totalRealizedGainBinance.ToString(doubleFormat) + " " + totalRealizedLossBinance.ToString(doubleFormat) + " " + (totalRealizedGainBinance + totalRealizedLossBinance).ToString(doubleFormat));
+            Console.WriteLine("realizedCB gain loss Total:" + totalRealizedGainCoinbase.ToString(doubleFormat) + " " + totalRealizedLossCoinbase.ToString(doubleFormat) + " " + (totalRealizedGainCoinbase + totalRealizedLossCoinbase).ToString(doubleFormat));
+            Console.WriteLine("realizedKR gain loss Total:" + totalRealizedGainKraken.ToString(doubleFormat) + " " + totalRealizedLossKraken.ToString(doubleFormat) + " " + (totalRealizedGainKraken + totalRealizedLossKraken).ToString(doubleFormat));
 
 
         }
 
-        public void convertBitcoinPairToTwoTransInUSD(List<transaction> transactions, double averageFactorPercentZeroToOne = 0.5)
+        public void convertBitcoinPairToTwoTransInUSD(List<Transaction> transactions, double averageFactorPercentZeroToOne = 0.5)
         {
             if (averageFactorPercentZeroToOne > 1 || averageFactorPercentZeroToOne < 0)
             {
                 throw new Exception("bad averageFactorPercentZeroToOne");
             }
 
-            List<transaction> transToAdd = new List<transaction>();
+            List<Transaction> transToAdd = new List<Transaction>();
             Dictionary<string, int> skippedPairs = new Dictionary<string, int>();
 
-            foreach (transaction t in transactions)
+            foreach (Transaction t in transactions)
             {
                 /*if (t.dateTime.Value.Date.Year == 2022 &&
                     t.dateTime.Value.Date.Month == 9 &&
@@ -1256,9 +1356,9 @@ namespace gaintaxlibrary
                     bool found = false;
                     foreach (historicDayPriceUSD hp in historicPrices)
                     {
-                        if (t.dateTime.Value.Date.Year == hp.dateOnly.Year &&
-                            t.dateTime.Value.Date.Month == hp.dateOnly.Month &&
-                            t.dateTime.Value.Date.Day == hp.dateOnly.Day
+                        if (t.dateTime.Date.Year == hp.dateOnly.Year &&
+                            t.dateTime.Date.Month == hp.dateOnly.Month &&
+                            t.dateTime.Date.Day == hp.dateOnly.Day
                             )
                         {
                             found = true;
@@ -1270,8 +1370,8 @@ namespace gaintaxlibrary
                     {
                         if (t.sellSymbol.ToLower() == "btc")
                         {
-                            transaction newTrans = new transaction();
-                            newTrans.dateTime = t.dateTime.Value;
+                            Transaction newTrans = new Transaction();
+                            newTrans.dateTime = t.dateTime;
                             newTrans.exchangeRec = t.exchangeRec;
                             newTrans.exchangeSent = t.exchangeSent;
                             newTrans.sellAmount = (highPrice * (1.0 - averageFactorPercentZeroToOne) +
@@ -1287,8 +1387,8 @@ namespace gaintaxlibrary
                         }
                         else if (t.buySymbol.ToLower() == "btc")
                         {
-                            transaction newTrans = new transaction();
-                            newTrans.dateTime = t.dateTime.Value;
+                            Transaction newTrans = new Transaction();
+                            newTrans.dateTime = t.dateTime;
                             newTrans.exchangeRec = t.exchangeRec;
                             newTrans.exchangeSent = t.exchangeSent;
                             newTrans.sellAmount = t.sellAmount;
@@ -1324,7 +1424,7 @@ namespace gaintaxlibrary
             {
                 transactions.Add(t);
             }
-            transactions.Sort((x, y) => x.dateTime.Value.CompareTo(y.dateTime.Value));
+            transactions.Sort((x, y) => x.dateTime.CompareTo(y.dateTime));
 
             foreach (var d in skippedPairs)
             {
@@ -1356,10 +1456,18 @@ namespace gaintaxlibrary
                     double basis = 0;
                     double amt = 0;
                     double avgbuy = 0;
-                    double totalcost = 0;
+                    //double totalcost = 0;
                     int count = 0;
+                    if(f.initialEntryBuySplitTrans == null)
+                    {
+                        throw new Exception("null error");
+                    }
                     foreach (var t in f.initialEntryBuySplitTrans)
                     {
+                        if(t.trans.sellSymbol == null)
+                        {
+                            throw new Exception("null error");
+                        }
                         count++;
                         basis += t.trans.sellAmount * t.portion;
                         if(t.trans.sellSymbol.ToLower().Contains("usd"))
@@ -1370,6 +1478,10 @@ namespace gaintaxlibrary
                     }
                     avgbuy = basis / amt;
 
+                    if(f.trans == null || f.trans.exchangeRec == null)
+                    {
+                        throw new Exception("null error");
+                    }
                     List<KeyValuePair<string,string>> outline = new List<KeyValuePair<string,string>>();
                     outline.Add(new KeyValuePair<string, string>("date", f.trans.dateTime.ToString()));
                     //outline.Add(f.trans.sellSymbol + "amt:");
@@ -1396,7 +1508,7 @@ namespace gaintaxlibrary
                 double basis = 0;
                 double amt = 0;
                 double avgbuy = 0;
-                double totalcost = 0;
+                //double totalcost = 0;
                 int count = 0;
                 foreach (var t in f.initialEntryBuySplitTrans)
                 {
@@ -1521,7 +1633,7 @@ namespace gaintaxlibrary
             }
         }
 
-        public List<List<string>> summerizeBucketsToStringList(List<bucket> buckets)
+        public List<List<string>> summerizeBucketsToStringList(List<Bucket> buckets)
         {
             List<List<string>> ret = new List<List<string>>();
             if(buckets.Count() ==0)
@@ -1581,21 +1693,21 @@ namespace gaintaxlibrary
         }
 
         
-        public List<KeyValuePair<string, double>> computeVolumeExchanges(List<transaction> transactions, bool includeOtherSymbol = true, bool onlyCurrentYear = true)
+        public List<KeyValuePair<string, double>> computeVolumeExchanges(List<Transaction> transactions, bool includeOtherSymbol = true, bool onlyCurrentYear = true)
         {
             List<KeyValuePair<string, double>> ret = new List<KeyValuePair<string, double>>();
 
-            foreach(transaction t in transactions)
+            foreach(Transaction t in transactions)
             {
-                if(t.dateTime.Value.Year == DateTime.Now.Year || onlyCurrentYear == false)
+                if(t.dateTime.Year == DateTime.Now.Year || onlyCurrentYear == false)
                 {
-                    string currtKeyBuy = t.buySymbol + "_" + t.exchangeRec + "_b_" + t.dateTime.Value.Year;
-                    string currtKeySell = t.sellSymbol + "_" + t.exchangeSent + "_s_" + t.dateTime.Value.Year;
+                    string currtKeyBuy = t.buySymbol + "_" + t.exchangeRec + "_b_" + t.dateTime.Year;
+                    string currtKeySell = t.sellSymbol + "_" + t.exchangeSent + "_s_" + t.dateTime.Year;
 
                     if(includeOtherSymbol)
                     {
-                        currtKeyBuy = t.buySymbol + "_" + t.exchangeRec + "_b_sell_" + t.sellSymbol + "_" + t.dateTime.Value.Year;
-                        currtKeySell = t.sellSymbol + "_" + t.exchangeSent + "_s_buy__" + t.buySymbol + "_" + t.dateTime.Value.Year;
+                        currtKeyBuy = t.buySymbol + "_" + t.exchangeRec + "_b_sell_" + t.sellSymbol + "_" + t.dateTime.Year;
+                        currtKeySell = t.sellSymbol + "_" + t.exchangeSent + "_s_buy__" + t.buySymbol + "_" + t.dateTime.Year;
                     }
 
                     KeyValuePair<string, double> curr = ret.FirstOrDefault(x => x.Key == currtKeyBuy);
@@ -1635,9 +1747,7 @@ namespace gaintaxlibrary
 
         }
 
-
-
-        public List<string> lastNtrans( string symb, List<transaction> trans, bool ytd, bool pytd = false, int n=0)
+        public List<string> lastNtrans( string symb, List<Transaction> trans, bool ytd, bool pytd = false, int n=0)
         {
             int testCount = trans.Count();
             List<string> ret = new List<string>();
@@ -1654,7 +1764,18 @@ namespace gaintaxlibrary
             }
             if(ytd)
             {
-                lastTransYear = trans.FindLast(x=> true).dateTime.Value.Year;
+                var lastTrans = trans.LastOrDefault(x => x?.dateTime != null);
+                if (lastTrans != null)
+                {
+                    lastTransYear = lastTrans.dateTime.Year;
+                }
+                else
+                {
+                    // Handle the case where no valid transaction is found
+                    lastTransYear = 0; // or some default value
+                }
+
+
             }
             
             if(pytd)
@@ -1663,22 +1784,22 @@ namespace gaintaxlibrary
                 lastTransYear-=1;
             }
 
-            if(n == 0)
+            if (n == 0)
             {
                 n=99999999;
             }
 
+            
             int curr=0;
             int startIndex = trans.Count(x => 
             (x.buySymbol.ToLower() == symb.ToLower() && x.sellSymbol.ToLower().Contains("usd")) ||
             (x.sellSymbol.ToLower() == symb.ToLower() && x.buySymbol.ToLower().Contains("usd"))
             ) - n;
 
-            List<transaction> reversed = trans.ToList();
-
+            List<Transaction> reversed = trans.ToList();
             reversed.Reverse();
 
-            foreach(transaction t in reversed)
+            foreach(Transaction t in reversed)
             {
                 if(
                     (t.buySymbol.ToLower() == symb.ToLower() && t.sellSymbol.ToLower().Contains("usd")) ||
@@ -1687,7 +1808,7 @@ namespace gaintaxlibrary
                     curr++;
                 }
 
-                if(curr >= startIndex && (!ytd || (ytd && t.dateTime.Value.Year == lastTransYear)))
+                if(curr >= startIndex && (!ytd || (ytd && t.dateTime.Year == lastTransYear)))
                 {
                     if(t.buySymbol.ToLower() == symb.ToLower() && t.sellSymbol.ToLower().Contains("usd"))
                     {
@@ -1695,7 +1816,7 @@ namespace gaintaxlibrary
                         string line = "";
                         total += t.buyAmount;
                         volumeDollars += t.sellAmount;
-                        line += "$-" + t.sellAmount.ToString("######.00") + "       " + t.dateTime.Value.ToString("yy/MM/dd") + "   " + t.buyAmount.ToString("####.0000") +
+                        line += "$-" + t.sellAmount.ToString("######.00") + "       " + t.dateTime.ToString("yy/MM/dd") + "   " + t.buyAmount.ToString("####.0000") +
                         "   @$" + (t.sellAmount / t.buyAmount).ToString("####.00") + "  " + symb + total.ToString("####.0000") + " vol$" + volumeDollars.ToString("####.00");
                         ret.Add(line);
 
@@ -1708,7 +1829,7 @@ namespace gaintaxlibrary
                         string line = "";
                         total += t.sellAmount;
                         volumeDollars += t.buyAmount;
-                        line += "     $+" + t.buyAmount.ToString("######.00") + "  " + t.dateTime.Value.ToString("yy/MM/dd") + "   " + t.sellAmount.ToString("####.0000") +
+                        line += "     $+" + t.buyAmount.ToString("######.00") + "  " + t.dateTime.ToString("yy/MM/dd") + "   " + t.sellAmount.ToString("####.0000") +
                         "   @$" + (t.buyAmount / t.sellAmount).ToString("####.00") + "  " + symb + total.ToString("####.0000") + " vol$" + volumeDollars.ToString("####.00");
                         ret.Add(line);
 
@@ -1755,7 +1876,7 @@ namespace gaintaxlibrary
             b.gain = a.gain;
             b.initialEntryBuySplitTrans = new List<splitTransaction>();
             foreach(var t in a.initialEntryBuySplitTrans){
-                var r = new splitTransaction{portion = t.portion, trans = new transaction()};
+                var r = new splitTransaction{portion = t.portion, trans = new Transaction()};
                 r.trans = t.trans.deepCopy();
                 b.initialEntryBuySplitTrans.Add(r);
             }
@@ -1766,7 +1887,7 @@ namespace gaintaxlibrary
         }*/
 
         /*
-        public void computeBuysSellsSymbol(List<transaction> transactions, string symbol)
+        public void computeBuysSellsSymbol(List<Transaction> transactions, string symbol)
         {
             Console.WriteLine(symbol);
 
@@ -1787,12 +1908,12 @@ namespace gaintaxlibrary
                 new KeyValuePair<string, string>(symbol, "usd")
                 };
 
-                List<total> totalBuy = new List<total>();
-                List<total> totalSell = new List<total>();
-                //List<total> totalBoth = new List<total>();
+                List<Total> totalBuy = new List<Total>();
+                List<Total> totalSell = new List<Total>();
+                //List<Total> totalBoth = new List<Total>();
 
                 //buys
-                foreach (transaction t in transactions)
+                foreach (Transaction t in transactions)
                 {
                     bool includeTransDueToYear = false;
                     if (year == null)
@@ -1824,7 +1945,7 @@ namespace gaintaxlibrary
                             t.buySymbol.ToLower() == specificPair.Key &&
                             t.sellSymbol.ToLower() == specificPair.Value) == null)// does entry exist? if not add
                             {
-                                total r = new total();
+                                Total r = new Total();
                                 r.buySymbol = t.buySymbol;
                                 r.sellSymbol = t.sellSymbol;
                                 r.Amount = t.buyAmount;
@@ -1853,7 +1974,7 @@ namespace gaintaxlibrary
                 }
 
                 //sells
-                foreach (transaction t in transactions)
+                foreach (Transaction t in transactions)
                 {
                     bool includeTransDueToYear = false;
                     if (year == null)
@@ -1885,7 +2006,7 @@ namespace gaintaxlibrary
                             t.buySymbol.ToLower() == "usd" &&
                             t.sellSymbol.ToLower() == specificPair.Key) == null)// does entry exist? if not add
                             {
-                                total r = new total();
+                                Total r = new Total();
                                 r.buySymbol = t.buySymbol;
                                 r.sellSymbol = t.sellSymbol;
                                 r.Amount = t.sellAmount; // sold something like btc
@@ -1910,7 +2031,7 @@ namespace gaintaxlibrary
                                 }
                             }
 
-                            //total u = totalsSell.First(s => s.buySymbol == t.buySymbol && s.sellSymbol == t.sellSymbol);
+                            //Total u = totalsSell.First(s => s.buySymbol == t.buySymbol && s.sellSymbol == t.sellSymbol);
 
                             //if (u is null)
                             {
@@ -1918,7 +2039,7 @@ namespace gaintaxlibrary
                             }
                             //else
                             {
-                                // t is current transaction
+                                // t is current Transaction
                              //   double totalValue = u.Average * u.Amount + t.buyAmount;
                                // u.Amount += t.sellAmount;
                                 // update the average
@@ -1957,7 +2078,7 @@ namespace gaintaxlibrary
 
                 string doubleFormat = "0.####";
 
-                foreach (total mysell in totalSell)
+                foreach (Total mysell in totalSell)
                 {
                     if (mysell.sellSymbol == "eth")
                     {
@@ -1966,7 +2087,7 @@ namespace gaintaxlibrary
                     }
                 }
 
-                foreach (total mybuy in totalBuy)
+                foreach (Total mybuy in totalBuy)
                 {
                     if (mybuy.buySymbol == "eth")
                     {
