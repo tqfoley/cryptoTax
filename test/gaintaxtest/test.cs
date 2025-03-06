@@ -885,12 +885,10 @@ namespace gaintaxtest{
             addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,4,4), 0.1, 50, "kracken");
             addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(DateTime.Now.Year,5,5), 0.12, 2100*0.12, "kracken");
 
-
             List<KeyValuePair<string, double>> perExchangeAndYear = t.computeVolumeExchanges(t.transactionsOriginal);
 
-            foreach(KeyValuePair<string, double> g in perExchangeAndYear){
-
-            
+            foreach(KeyValuePair<string, double> g in perExchangeAndYear)
+            {
                 Console.WriteLine(g.Key + "\t\t" + g.Value.ToString("000000.##") );
             }
 
@@ -942,7 +940,8 @@ namespace gaintaxtest{
         }
 
         [Fact]
-        public void testVolumePerExchangeAndYear(){
+        public void testVolumePerExchangeAndYear()
+        {
             
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<Transaction>();
@@ -962,7 +961,8 @@ namespace gaintaxtest{
         }
 
         [Fact]
-        public void testVolumePerExchangeAndYearONLYCURRENTYEAR(){
+        public void testVolumePerExchangeAndYearONLYCURRENTYEAR()
+        {
             
             ClassGainTax t = new ClassGainTax();
             t.transactionsOriginal = new List<Transaction>();
@@ -1018,5 +1018,40 @@ namespace gaintaxtest{
             }
             return new List<KeyValuePair<string, string>>();
         }
+
+        
+        [Fact]
+        public void testTurboTaxCSVImportFile()
+        {
+             ClassGainTax t = new ClassGainTax();
+            t.transactionsOriginal = new List<Transaction>();
+
+            historicDayPriceUSD hp = new historicDayPriceUSD();
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2016,1,1), 0.1, 40, "mtgox");
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2016,2,2), 0.1, 60, "mtgox");
+            addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2016,3,3), 0.15, 620*0.15, "mtgox");
+            addUsdBuyTransaction(t.transactionsOriginal, "btc", new DateTime(2016,4,4), 0.1, 10, "mtgox");
+            addUsdSellTransaction(t.transactionsOriginal, "btc", new DateTime(2016,5,5), 0.12, 420*0.12, "mtgox");
+            
+            List<Bucket> buckets = new List<Bucket>();
+
+            var realizedbtc = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
+            t.combineTransactionsInHourLongWindow_MODIFIES_transactions(t.transactionsOriginal, 24 * 31, true, 4.0);
+            var realizedbtc2 = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
+
+            var realizedTrans = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
+            var t22 = t.realizedTransToKeyValStringString(realizedTrans);
+            
+            List<string> csvData = t.CreateTurboTaxImportCSV(realizedbtc);
+
+            Assert.Contains("Mt.Gox", csvData.First(x => x.Contains("Mt.Gox")));
+            Assert.Contains("62.0000, 2.0000", csvData.First(x => x.Contains("62.0000, 2.0000")));
+            Assert.Contains("31.0000, 11.0000", csvData.First(x => x.Contains("31.0000, 11.0000")));
+            Assert.Contains("21.0000, 1.0000", csvData.First(x => x.Contains("21.0000, 1.0000")));
+            Assert.Contains("29.4000, 22.4000", csvData.First(x => x.Contains("29.4000, 22.4000")));
+            
+        }
+
+
     }
 }

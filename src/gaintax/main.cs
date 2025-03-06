@@ -658,7 +658,8 @@ namespace main
                     }
                     if(line.ToLower().Contains("long"))
                     {
-                        if(previousline.ToLower().Contains("perp")){
+                        if(previousline.ToLower().Contains("perp"))
+                        {
                             currentSymbol = previousline;
                             foundtransStep = 2;
                         }
@@ -666,7 +667,8 @@ namespace main
                     
                     if(line.ToLower().Contains("short"))
                     {
-                        if(previousline.ToLower().Contains("perp")){
+                        if(previousline.ToLower().Contains("perp"))
+                        {
                             currentSymbol = previousline;
                             foundtransStep = 2;
                         }
