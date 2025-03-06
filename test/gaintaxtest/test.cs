@@ -1041,15 +1041,19 @@ namespace gaintaxtest{
 
             var realizedTrans = t.computeGains(out buckets, false, "btc", "fiho", t.transactionsOriginal);
             var t22 = t.realizedTransToKeyValStringString(realizedTrans);
-            
-            List<string> csvData = t.CreateTurboTaxImportCSV(realizedbtc);
+
+            double gain = 0;
+            double basis = 0;
+            double proceeds = 0;
+
+            List<string> csvData = t.CreateTurboTaxImportCSV(realizedbtc, "Mt.Gox", out gain, out proceeds, out basis);
 
             Assert.Contains("Mt.Gox", csvData.First(x => x.Contains("Mt.Gox")));
             Assert.Contains("62.0000, 2.0000", csvData.First(x => x.Contains("62.0000, 2.0000")));
             Assert.Contains("31.0000, 11.0000", csvData.First(x => x.Contains("31.0000, 11.0000")));
             Assert.Contains("21.0000, 1.0000", csvData.First(x => x.Contains("21.0000, 1.0000")));
             Assert.Contains("29.4000, 22.4000", csvData.First(x => x.Contains("29.4000, 22.4000")));
-            
+    
         }
 
 

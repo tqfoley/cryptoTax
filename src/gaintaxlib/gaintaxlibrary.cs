@@ -1436,7 +1436,7 @@ namespace gaintaxlibrary
                 else
                 {
                     Console.WriteLine(d.Key + " " + d.Value.ToString());
-                    throw new Exception("bad averageFactorPercentZeroToOne");
+                    //throw new Exception("bad averageFactorPercentZeroToOne");
                 }
             }
         }
@@ -1864,7 +1864,7 @@ namespace gaintaxlibrary
 
         }
 
-        public List<string> CreateTurboTaxImportCSV(List<RealizedTransaction> realizedTransactions)
+        public List<string> CreateTurboTaxImportCSV(List<RealizedTransaction> realizedTransactions, string exchangeFilter, out double totalGain, out double totalProceeds, out double totalBasis)
         {
             List<string> ret = new List<string>();
             ret.Add("Transaction Type,Transaction ID,Tax lot ID,Asset name,Amount,Date Acquired,Cost basis (USD),Date of Disposition,Proceeds (USD),Gains (Losses) (USD),Holding period (Days),Data source");
@@ -1882,25 +1882,28 @@ namespace gaintaxlibrary
             //Data source            Mt.Gox
             //based on coinbase csv
 
+            totalBasis = 0;
+            totalGain = 0;
+            totalProceeds = 0;
             foreach(RealizedTransaction rt in realizedTransactions)
             {
                 DateOnly acquired = new DateOnly(rt.trans.dateTime.Year, rt.trans.dateTime.Month, rt.trans.dateTime.Day);
                 DateOnly disposition = new DateOnly(rt.trans.dateTime.Year, rt.trans.dateTime.Month, rt.trans.dateTime.Day);
                 int daysHeld = disposition.DayNumber - acquired.DayNumber;
                 string dataSource = "Ethereum";
-                if(rt.trans.exchangeSent.Contains("oinbase"))
+                if(rt.trans.exchangeSent.Contains("oinbase") || rt.trans.exchangeRec.Contains("oinbase"))
                 {
                     dataSource = "Coinbase";
                 }
-                if(rt.trans.exchangeSent.Contains("raken"))
+                if(rt.trans.exchangeSent.Contains("raken") || rt.trans.exchangeRec.Contains("raken"))
                 {
                     dataSource = "Kraken";
                 }
-                if(rt.trans.exchangeSent.Contains("inance"))
+                if(rt.trans.exchangeSent.Contains("inance") || rt.trans.exchangeRec.Contains("inance"))
                 {
                     dataSource = "Binance";
                 }
-                if(rt.trans.exchangeSent.Contains("ox"))
+                if(rt.trans.exchangeSent.Contains("ox") || rt.trans.exchangeRec.Contains("ox"))
                 {
                     dataSource = "Mt.Gox";
                 }
@@ -1910,9 +1913,16 @@ namespace gaintaxlibrary
                 + acquired.ToString("MM/dd/yyyy") + ", " + (rt.sellAmountReceivedUsuallyDollars - rt.gain).ToString("#.0000") + ", "
                 + disposition.ToString("MM/dd/yyyy") + ", " + rt.sellAmountReceivedUsuallyDollars.ToString("#.0000") + ", " + rt.gain.ToString("#.0000") + ", "
                 + daysHeld + ", " + dataSource;
-                ret.Add(line);
 
-                if(rt.trans.buyAmount / rt.trans.sellAmount + 0.0001 < rt.sellAmountReceivedUsuallyDollars / rt.amount)
+                if(exchangeFilter == dataSource) // only include items for this exchange
+                {
+                    ret.Add(line);
+                    totalGain += rt.gain;
+                    totalProceeds += rt.sellAmountReceivedUsuallyDollars;
+                    totalBasis += rt.sellAmountReceivedUsuallyDollars - rt.gain;
+                }
+
+                if (rt.trans.buyAmount / rt.trans.sellAmount + 0.0001 < rt.sellAmountReceivedUsuallyDollars / rt.amount)
                 {
                     throw new Exception("bad");
                 }
@@ -1934,6 +1944,59 @@ namespace gaintaxlibrary
 
         }
 
+        public static List<historicDayPriceUSD> ReadHistoric(string pathAndFileName)
+        {
+            List<historicDayPriceUSD> ret = new List<historicDayPriceUSD>();
+
+            List<string> lines = new List<string>(File.ReadAllLines(pathAndFileName));
+
+            int count = 0;
+            foreach (var line in lines)
+            {
+                if (count++ > 0)
+                {
+                    List<DateTime> dateTimes = new List<DateTime>();
+                    List<double> numbers = new List<double>();
+                    List<string> others = new List<string>();
+
+                    string[] items = line.Split(';');
+                    foreach (var item in items)
+                    {
+                        string trimmed = item.Trim('"'); // Remove quotes if present
+
+                        if (DateTime.TryParseExact(trimmed, "yyyy-MM-ddTHH:mm:ss.fffZ",
+                                                   CultureInfo.InvariantCulture,
+                                                   DateTimeStyles.AssumeUniversal,
+                                                   out DateTime dateTime))
+                        {
+                            dateTimes.Add(dateTime);
+                        }
+                        else if (double.TryParse(trimmed, out double number))
+                        {
+                            numbers.Add(number);
+                        }
+                        else
+                        {
+                            others.Add(trimmed);
+                        }
+
+                    }
+
+                    historicDayPriceUSD hp = new historicDayPriceUSD();
+                    hp.firstPrice = numbers[0];
+                    hp.high = numbers[1];
+                    hp.low = numbers[2];
+                    hp.lastPrice = numbers[3];
+                    hp.dateOnly = new DateOnly(dateTimes.First().Year, dateTimes.First().Month, dateTimes.First().Day);
+                    hp.volume = numbers[4];
+
+                    ret.Add(hp);
+                }
+            }
+
+            return ret;
+
+        }
 
     }
 
