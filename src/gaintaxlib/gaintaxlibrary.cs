@@ -13,7 +13,6 @@ namespace gaintaxlibrary
         public int combinedCount = 0;
         public DateTime? optionalSecondTansDate;
 
-
         public string buySymbol;
         public double buyAmount;
         public string exchangeRec;
@@ -520,7 +519,6 @@ namespace gaintaxlibrary
             return ignoreInsignificantTrans.Count;
 
         }
-
         public void deleteSingleLastZeroAmountInList(List<Bucket> t)
         {
             int lastindex = t.Count - 1;
@@ -542,6 +540,12 @@ namespace gaintaxlibrary
 
         public List<RealizedTransaction> computeGains(out List<Bucket> buckets, bool combineRealizedTransactionOnSameDay, string symbol, string mode, List<Transaction> transactions, DateTime? endDate = null, bool printIndividualTrans = false)
         {
+            /*if(combineRealizedTransactionOnSameDay)
+            {
+                throw new Exception("This will combine tranasctions on different exchanges");
+                throw new Exception("it should not do this");
+            }*/
+
             Console.WriteLine("gains for " + symbol);
             transactions = transactions.OrderBy(x => x.dateTime).ToList();
             
@@ -1004,8 +1008,7 @@ namespace gaintaxlibrary
             Console.WriteLine("UNREALIZED     " + "\tprofit:" + (unrealizedProfit / 1000).ToString("0.###") + "K AMOUNT TO SELL:" + averageBuyAmount);
             // end unrealized
 
-
-
+            bool NoSALES = true;
             // COMBINE on same day
             // COMBINE on same day
             // COMBINE on same day
@@ -1034,7 +1037,7 @@ namespace gaintaxlibrary
                         {
                             throw new Exception("error null currentombinetran");
                         }
-
+                        NoSALES = false;
                         currentCombineTrans.gain += g.gain;
                         currentCombineTrans.amount += g.amount;
                         currentCombineTrans.sellAmountReceivedUsuallyDollars += g.sellAmountReceivedUsuallyDollars;
@@ -1062,11 +1065,14 @@ namespace gaintaxlibrary
                 }
                 if (currentDate !=  new DateOnly())
                 {
-                    if(currentCombineTrans == null)
+                    if(currentCombineTrans == null && NoSALES == false)
                     {
                         throw new Exception("bad");
-                    }    
-                    combineRealizedTrans.Add(currentCombineTrans);
+                    }
+                    if (currentCombineTrans != null)
+                    {
+                        combineRealizedTrans.Add(currentCombineTrans);
+                    }
                 }
                 return combineRealizedTrans;
             }
@@ -1922,11 +1928,17 @@ namespace gaintaxlibrary
                     totalBasis += rt.sellAmountReceivedUsuallyDollars - rt.gain;
                 }
 
-                if (rt.trans.buyAmount / rt.trans.sellAmount + 0.0001 < rt.sellAmountReceivedUsuallyDollars / rt.amount)
+                double sensativityCheck = 0.0001;
+                
+                double one = rt.trans.buyAmount / rt.trans.sellAmount - sensativityCheck;
+                double two = rt.sellAmountReceivedUsuallyDollars / rt.amount;
+                if (rt.trans.buyAmount / rt.trans.sellAmount + sensativityCheck < rt.sellAmountReceivedUsuallyDollars / rt.amount)
                 {
                     throw new Exception("bad");
                 }
-                if(rt.trans.buyAmount / rt.trans.sellAmount - 0.0001 > rt.sellAmountReceivedUsuallyDollars / rt.amount)
+                one = rt.trans.buyAmount / rt.trans.sellAmount - sensativityCheck;
+                two = rt.sellAmountReceivedUsuallyDollars / rt.amount;
+                if (rt.trans.buyAmount / rt.trans.sellAmount - sensativityCheck > rt.sellAmountReceivedUsuallyDollars / rt.amount)
                 {
                     throw new Exception("bad");
                 }
@@ -1934,14 +1946,9 @@ namespace gaintaxlibrary
                 {
                     throw new Exception("bad");
                 }
-
-
-
             }
 
             return ret;
-
-
         }
 
         public static List<historicDayPriceUSD> ReadHistoric(string pathAndFileName)
